@@ -17,8 +17,8 @@ jobs:
     permissions:
       contents: read
     outputs:
-      version: ${{ steps.check.outputs.version }
-      tag: ${{ steps.check.outputs.tag }
+      version: ${{ steps.check.outputs.version }}
+      tag: ${{ steps.check.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,8 +27,8 @@ jobs:
       - name: New unique version check
         id: check
         env:
-          GH_TOKEN: ${{ github.token }
-          RELEASE_VERSION: ${{ inputs.version }
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
         run: python3 scripts/release/check_version.py
       - run: npm install --no-audit --no-fund
       - run: npm run build
@@ -45,7 +45,7 @@ jobs:
       matrix:
         edition: [Free, Pro]
     env:
-      VITE_IPTV_EDITION: ${{ matrix.edition == 'Free' && 'free' || 'pro' }
+      VITE_IPTV_EDITION: ${{ matrix.edition == 'Free' && 'free' || 'pro' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -64,8 +64,8 @@ jobs:
       - name: Collect Portable and Setup
         shell: pwsh
         env:
-          RELEASE_VERSION: ${{ needs.preflight.outputs.version }
-          EDITION: ${{ matrix.edition }
+          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
+          EDITION: ${{ matrix.edition }}
         run: |
           New-Item -ItemType Directory -Force release | Out-Null
           $exe = "src-tauri/target/release/iptv-plus.exe"
@@ -76,7 +76,7 @@ jobs:
           Copy-Item $setups[0].FullName "release/IPTV-Plus-v$($env:RELEASE_VERSION)-$($env:EDITION)-Setup.exe"
       - uses: actions/upload-artifact@v4
         with:
-          name: iptv-windows-${{ matrix.edition }
+          name: iptv-windows-${{ matrix.edition }}
           path: release/*.exe
           if-no-files-found: error
 
@@ -90,11 +90,11 @@ jobs:
       matrix:
         edition: [Free, Pro]
     env:
-      VITE_IPTV_EDITION: ${{ matrix.edition == 'Free' && 'free' || 'pro' }
-      IPTV_ANDROID_KEYSTORE_BASE64: ${{ matrix.edition == 'Free' && secrets.IPTV_FREE_KEYSTORE_BASE64 || secrets.IPTV_PRO_KEYSTORE_BASE64 }
-      IPTV_ANDROID_STORE_PASSWORD: ${{ matrix.edition == 'Free' && secrets.IPTV_FREE_STORE_PASSWORD || secrets.IPTV_PRO_STORE_PASSWORD }
-      IPTV_ANDROID_KEY_PASSWORD: ${{ matrix.edition == 'Free' && secrets.IPTV_FREE_KEY_PASSWORD || secrets.IPTV_PRO_KEY_PASSWORD }
-      IPTV_ANDROID_KEY_ALIAS: ${{ matrix.edition == 'Free' && secrets.IPTV_FREE_KEY_ALIAS || secrets.IPTV_PRO_KEY_ALIAS }
+      VITE_IPTV_EDITION: ${{ matrix.edition == 'Free' && 'free' || 'pro' }}
+      IPTV_ANDROID_KEYSTORE_BASE64: ${{ matrix.edition == 'Free' && secrets.IPTV_FREE_KEYSTORE_BASE64 || secrets.IPTV_PRO_KEYSTORE_BASE64 }}
+      IPTV_ANDROID_STORE_PASSWORD: ${{ matrix.edition == 'Free' && secrets.IPTV_FREE_STORE_PASSWORD || secrets.IPTV_PRO_STORE_PASSWORD }}
+      IPTV_ANDROID_KEY_PASSWORD: ${{ matrix.edition == 'Free' && secrets.IPTV_FREE_KEY_PASSWORD || secrets.IPTV_PRO_KEY_PASSWORD }}
+      IPTV_ANDROID_KEY_ALIAS: ${{ matrix.edition == 'Free' && secrets.IPTV_FREE_KEY_ALIAS || secrets.IPTV_PRO_KEY_ALIAS }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -125,15 +125,15 @@ jobs:
         run: npm run tauri -- android build --apk --aab --ci --config "src-tauri/tauri.$VITE_IPTV_EDITION.conf.json" --target aarch64 armv7 x86_64
       - name: Verify both signed packages
         env:
-          RELEASE_VERSION: ${{ needs.preflight.outputs.version }
-          EDITION: ${{ matrix.edition }
+          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
+          EDITION: ${{ matrix.edition }}
         run: |
           python3 scripts/release/collect_android.py "$EDITION" "$RELEASE_VERSION" release
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "release/IPTV-Plus-v$RELEASE_VERSION-$EDITION.apk"
           jarsigner -verify -strict "release/IPTV-Plus-v$RELEASE_VERSION-$EDITION.aab"
       - uses: actions/upload-artifact@v4
         with:
-          name: iptv-android-${{ matrix.edition }
+          name: iptv-android-${{ matrix.edition }}
           path: |
             release/*.apk
             release/*.aab
@@ -153,7 +153,7 @@ jobs:
           merge-multiple: true
       - name: Add all branding, QA manifest and SHA-256
         env:
-          RELEASE_VERSION: ${{ needs.preflight.outputs.version }
+          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
         run: |
           python3 scripts/release/validate_designs.py
           zip -q -r "release/IPTV-Plus-v$RELEASE_VERSION-Branding.zip" assets/brand assets/previews assets/screens
@@ -161,8 +161,8 @@ jobs:
           python3 scripts/release/validate_artifacts.py --directory release --version "$RELEASE_VERSION"
       - name: Publish ONLY after all eight build variants pass
         env:
-          GH_TOKEN: ${{ github.token }
-          TAG: ${{ needs.preflight.outputs.tag }
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.preflight.outputs.tag }}
         run: |
           gh release create "$TAG" release/* \
             --target "$GITHUB_SHA" \
