@@ -1,0 +1,35 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "IPTV+",
+  "version": "0.1.0",
+  "identifier": "com.brendigo.iptvplus",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "IPTV+ | Televizija po tvome",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 780,
+        "minHeight": 560,
+        "backgroundColor": "#080D1C"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' asset: http://asset.localhost; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: http:; media-src 'self' blob: https: http:; connect-src 'self' https: http:; worker-src blob:; object-src 'none'; base-uri 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [],
+    "shortDescription": "IPTV+ — tvoj sadržaj, tvoj izbor",
+    "category": "Entertainment"
+  }
+}
