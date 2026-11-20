@@ -13,6 +13,7 @@ export type Channel = {
   logo?: string;
   url?: string;
   demo?: boolean;
+  sourceId?: string;
 };
 
 export const regions: { code: Country; label: string; flag: string }[] = [

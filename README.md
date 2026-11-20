@@ -139,3 +139,16 @@ Pravila: [RELEASE_POLICY.md](docs/RELEASE_POLICY.md).
 potpisivanje; još nisu izvršeni. Pro nije samo prekidač u Free aplikaciji,
 nego zasebni paket. Za unos unaprijed pripremljenih regionalnih izvora
 potrebna su dokumentirana prava ([CATALOG.md](docs/CATALOG.md)).
+
+## 🌐 Regionalne GitHub IPTV zbirke na jedan klik
+
+U prozoru **Izvori i liste** ponuđene su javne zbirke `iptv-org` (HR, SI, BiH, RS),
+uređivani `Doubo Public Channel Directory` (HR, BiH, RS) te
+`biskyt/legalFreeIPTVplaylist` (TV, filmovi i serije s opisanom pravnom podlogom).
+
+Korisnik aktivira izvor i kanali se dohvaćaju izravno na njegov uređaj, bez poslužitelja IPTV+.
+Aktivirane liste ponovo se osvježavaju pri pokretanju i **svakih 12 sati dok je aplikacija otvorena**.
+Za odabrane javne izvore spremaju se samo ID-ovi, bez pristupnih podataka.
+Pojedini izvori mogu biti nedostupni zbog CORS-a, geoblokade ili prava emitera.
+
+Zbirke i postupanje s pravima detaljno: [GitHub sources](docs/GITHUB_SOURCES.md).
