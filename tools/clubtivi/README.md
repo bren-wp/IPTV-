@@ -31,13 +31,17 @@ Repeat from a **fresh submodule checkout** with `--edition pro`. The preparation
 - Android minimum SDK 24 and removal of unsupported Android in-app APK-install permission.
 - Preserves Flutter package name `clubtivi` **internally** to avoid invalidating all Dart `package:clubtivi/...` references.
 - Preserves original Apache 2.0 license, NOTICE/credit and clubTivi source authorship.
-- Adds build-time Free/Pro edition flag and **different app names**, but **does not yet implement feature gates** in the original Flutter project.
+- Activates original clubTivi `FeatureGate` at startup from `--dart-define=IPTV_EDITION=free|pro` (Free: up to 2 providers; Pro: expanded limits), with separate Android package names.
+- Adds ten regional/public preset sources to the upstream one-click provider chooser: HR/SI/BiH/RS (iptv-org), Doubo HR/BiH/RS and global biskyt TV/films/series.
+- Preserves upstream Smart Channels, XMLTV EPG, provider handling, Flutter remote controls and player implementation.
 
 ## Current limitations
 
 **This is an optional evaluation adapter, not a production replacement or release.** It has not passed the full Flutter native builds, has no configured release signing, Setup/Portable build, or pixel-perfect QA. It must not be substituted into the existing eight-artifact Tauri GitHub Release pipeline without an explicit, reviewed migration plan.
 
 The full player UI and remote navigation of clubTivi are more mature; however, rebranding needs further localization and layout work to match the 39 IPTV+ screen concepts. The `IPTV+` brand must not imply endorsement by upstream.
+
+Source URLs remain maintained by independent projects; availability, copyrights, data terms and territorial restrictions apply. The free playlist chooser does **not** grant a premium IPTV subscription. The packaged Flutter screens still require full IPTV+ visual QA and Croatian localization.
 
 ## Rights
 clubTivi provides no TV channels, subscription access or legitimate premium streams. The IPTV+ regional GitHub source browser is a distinct Tauri feature. Bringing that source logic into Flutter will require an explicit platform implementation and licensing review.
