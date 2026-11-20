@@ -1,0 +1,9 @@
+{
+  "productName": "IPTV+ Pro",
+  "identifier": "com.brendigo.iptvplus.pro",
+  "bundle": {
+    "android": {
+      "minSdkVersion": 24
+    }
+  }
+}

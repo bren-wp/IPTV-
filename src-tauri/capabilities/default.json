@@ -1,0 +1,10 @@
+{
+  "identifier": "default",
+  "description": "Minimalna dopuštenja osnovnog IPTV+ prozora",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default"
+  ]
+}
