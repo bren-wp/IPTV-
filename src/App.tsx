@@ -6,7 +6,7 @@ import {
   Play, Search, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Star,
   Tv2, Upload, X
 } from 'lucide-react';
-import { type Channel, type Country, demoChannels, parseM3U, regions } from './catalog';
+import { type Channel, type Country, demoChannels, parseM3U, regions, loadApprovedCatalog } from './catalog';
 
 type Screen = 'home' | 'live' | 'guide' | 'movies' | 'series' | 'kids' | 'favorites' | 'search' | 'sources' | 'settings';
 type MenuItem = { id: Screen; label: string; icon: typeof Home };
@@ -110,7 +110,7 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('home');
   const [channels, setChannels] = useState<Channel[]>(demoChannels);
   const [favorites, setFavorites] = useState<string[]>(readFavorites);
-  const [pro, setPro] = useState<boolean>(() => readFlag('iptv-plus-pro', false));
+  const pro = import.meta.env.VITE_IPTV_EDITION === 'pro';
   const [reducedMotion, setReducedMotion] = useState<boolean>(() => readFlag('iptv-plus-reduced-motion', false));
   const [compact, setCompact] = useState<boolean>(() => readFlag('iptv-plus-compact', false));
   const [country, setCountry] = useState<CountryFilter>(allCountry);
@@ -121,6 +121,13 @@ export default function App() {
   const [notice, setNotice] = useState('');
   const [importError, setImportError] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void loadApprovedCatalog().then(approved => {
+      if (!cancelled && approved.length > 0) setChannels(approved);
+    }).catch(() => { /* katalog može biti privremeno nedostupan */ });
+    return () => { cancelled = true; };
+  }, []);
   const realCount = channels.filter(c => !c.demo).length;
   const visibleChannels = useMemo(() => {
     let values = channels;
@@ -139,7 +146,7 @@ export default function App() {
   const toggleFavorite = (channel: Channel) => {
     setFavorites(current => {
       const exists = current.includes(channel.id);
-      if (!exists && !pro && current.length >= 10) { setNotice('Free način podržava do 10 favorita. Besplatno uključi Pro način u postavkama.'); return current; }
+      if (!exists && !pro && current.length >= 10) { setNotice('Free način podržava do 10 favorita. Za više favorita instaliraj IPTV+ Pro.'); return current; }
       const next = exists ? current.filter(x => x !== channel.id) : [...current, channel.id];
       try { localStorage.setItem('iptv-plus-favorites', JSON.stringify(next)); } catch { /* storage blocked */ }
       return next;
@@ -147,7 +154,7 @@ export default function App() {
   };
   const ingest = (source: string) => {
     try {
-      if (!pro && playlistCount >= 1) throw new Error('Free način podržava jednu listu. Pro način možeš besplatno uključiti u postavkama.');
+      if (!pro && playlistCount >= 1) throw new Error('Free način podržava jednu listu. Koristi zasebno IPTV+ Pro izdanje za više lista.');
       const imported = parseM3U(source);
       if (imported.length === 0) throw new Error('Lista ne sadrži podržane HTTP(S) izvore.');
       setChannels(current => [...current.filter(x => x.demo), ...current.filter(x => !x.demo && !imported.some(y => y.id === x.id)), ...imported]);
@@ -247,7 +254,7 @@ export default function App() {
           </section>}
           {screen === 'settings' && <section className="content-section"><div className="section-head"><div><span className="eyebrow">PRILAGODI ISKUSTVO</span><h2>Postavke</h2></div></div>
             <div className="settings-grid">
-              <div className="panel settings-panel"><div className="settings-heading"><Sparkles/><div><h3>Izdanje aplikacije</h3><p>Free i Pro način trenutačno su potpuno besplatni.</p></div></div><div className="setting-line"><span><b>IPTV+ Pro</b><small>Više lista i neograničeni favoriti</small></span><button className={`toggle ${pro ? 'on' : ''}`} role="switch" aria-checked={pro} aria-label="Pro način" onClick={() => { setPro(!pro); persistFlag('iptv-plus-pro', !pro); }}><span/></button></div><div className="setting-line"><span><b>Trenutačna verzija</b><small>Razvojni pregled v0.1.0</small></span><span className="settings-value">{pro ? 'Pro' : 'Free'}</span></div></div>
+              <div className="panel settings-panel"><div className="settings-heading"><Sparkles/><div><h3>Izdanje aplikacije</h3><p>Ovo je zaseban Free ili Pro paket, bez registracije i oglasa.</p></div></div><div className="setting-line"><span><b>IPTV+ Pro</b><small>Više lista i neograničeni favoriti</small></span><span className="settings-value">{pro ? 'IPTV+ Pro' : 'IPTV+ Free'}</span></div><div className="setting-line"><span><b>Trenutačna verzija</b><small>Razvojni pregled v0.1.0</small></span><span className="settings-value">{pro ? 'Pro' : 'Free'}</span></div></div>
               <div className="panel settings-panel"><div className="settings-heading"><SlidersHorizontal/><div><h3>Prikaz</h3><p>Jedinstven IPTV+ izgled na svim platformama.</p></div></div><div className="setting-line"><span><b>Kompaktan prikaz</b><small>Više kartica na ekranu</small></span><button className={`toggle ${compact ? 'on' : ''}`} role="switch" aria-checked={compact} aria-label="Kompaktan prikaz" onClick={() => { setCompact(!compact); persistFlag('iptv-plus-compact', !compact); }}><span/></button></div><div className="setting-line"><span><b>Smanji animacije</b><small>Pristupačnost i slabiji uređaji</small></span><button className={`toggle ${reducedMotion ? 'on' : ''}`} role="switch" aria-checked={reducedMotion} aria-label="Smanji animacije" onClick={() => { setReducedMotion(!reducedMotion); persistFlag('iptv-plus-reduced-motion', !reducedMotion); }}><span/></button></div></div>
               <div className="panel settings-panel"><div className="settings-heading"><Globe2/><div><h3>Jezik i regija</h3><p>Regionalni kanali na prvome mjestu.</p></div></div><div className="setting-line"><span><b>Jezik sučelja</b><small>Ostali jezici dolaze u kasnijoj fazi</small></span><span className="settings-value">Hrvatski <Check size={15}/></span></div><div className="setting-line"><span><b>Preferirane regije</b><small>Hrvatska, Slovenija, BiH, Srbija</small></span><span className="settings-value">HR · SI · BA · RS</span></div></div>
               <div className="panel settings-panel"><div className="settings-heading"><ShieldCheck/><div><h3>Privatnost i sigurnost</h3><p>Bez obveznog računa, bez reklamnih SDK-ova.</p></div></div><div className="setting-line"><span><b>Trajno spremanje izvora</b><small>Planirano uz sigurno spremište</small></span><span className="settings-value">U pripremi</span></div><div className="setting-line"><span><b>EPG i automatska sinkronizacija</b><small>Planirano uz provjerene izvore</small></span><span className="settings-value">U pripremi</span></div></div>

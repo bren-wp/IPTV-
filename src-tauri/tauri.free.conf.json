@@ -1,0 +1,9 @@
+{
+  "productName": "IPTV+ Free",
+  "identifier": "com.brendigo.iptvplus.free",
+  "bundle": {
+    "android": {
+      "minSdkVersion": 24
+    }
+  }
+}

@@ -19,3 +19,5 @@ jobs:
         run: npm run build
       - name: M3U parser tests
         run: npm test
+      - name: Verify every screen concept is versioned
+        run: python3 scripts/release/validate_designs.py

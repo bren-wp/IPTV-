@@ -119,3 +119,23 @@ Prijavi problem putem [GitHub Issues](https://github.com/bren-wp/IPTV-/issues). 
 ⭐ Ako ti je projekt zanimljiv, podrži ga GitHub zvjezdicom.
 
 </div>
+
+## 🎨 Svi pojedinačni prikazi ekrana
+
+**39 samostalnih SVG dizajnerskih koncepata** za Android, Windows i Android TV,
+uključujući Splash, Početnu, TV uživo, EPG, Filmove, Serije, Djecu, Favorite,
+Pretragu, Izvore, Postavke, Reproduktor i Free/Pro:
+
+➡️ [Otvori cijelu galeriju dizajna](assets/screens/README.md)
+
+## 📦 Obavezni paketi za svako novo izdanje
+
+Svaki novi GitHub Release mora sadržavati **Free i Pro** zasebne Android APK/AAB
+i zasebne Windows Portable.exe/Setup.exe, te SHA-256 sumu, release notes i
+ZIP sa svim grafičkim elementima. Automatizacija neće objaviti nepotpuno izdanje.
+Pravila: [RELEASE_POLICY.md](docs/RELEASE_POLICY.md).
+
+**Stanje:** nativni buildovi zahtijevaju odgovarajuće GitHub Secrets za Android
+potpisivanje; još nisu izvršeni. Pro nije samo prekidač u Free aplikaciji,
+nego zasebni paket. Za unos unaprijed pripremljenih regionalnih izvora
+potrebna su dokumentirana prava ([CATALOG.md](docs/CATALOG.md)).

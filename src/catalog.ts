@@ -110,3 +110,39 @@ const samples: Array<[string, Country, Category, string]> = [
 export const demoChannels: Channel[] = samples.map(([name, country, category, group], index) => ({
   id: 'demo-' + index, name, country, category, group, demo: true
 }));
+
+/** The built-in catalog must be documented as licensed/approved per channel. */
+export function parseApprovedCatalog(value: unknown): Channel[] {
+  if (!value || typeof value !== 'object') return [];
+  const obj = value as Record<string, unknown>;
+  if (obj.schemaVersion !== 1 || !Array.isArray(obj.channels)) return [];
+  const accepted: Channel[] = [];
+  const known = new Set<string>();
+  for (const raw of obj.channels.slice(0, 1500)) {
+    if (!raw || typeof raw !== 'object') continue;
+    const item = raw as Record<string, unknown>;
+    const rights = item.rights && typeof item.rights === 'object' ? item.rights as Record<string, unknown> : null;
+    if (rights?.status !== 'approved' || typeof rights.evidenceUrl !== 'string' ||
+        !rights.evidenceUrl.startsWith('https://') || typeof rights.reviewedAt !== 'string') continue;
+    const url = typeof item.url === 'string' ? safeMediaUrl(item.url) : undefined;
+    if (!url || known.has(url) || typeof item.name !== 'string') continue;
+    const country = item.country;
+    const category = item.category;
+    if (!['HR', 'SI', 'BA', 'RS', 'OTHER'].includes(String(country))) continue;
+    if (!['TV', 'SPORT', 'MOVIES', 'SERIES', 'KIDS', 'MUSIC', 'OTHER'].includes(String(category))) continue;
+    known.add(url);
+    accepted.push({
+      id: stableId(url), name: item.name.slice(0, 120),
+      group: typeof item.group === 'string' ? item.group.slice(0, 80) : 'Ostalo',
+      country: country as Country, category: category as Category, url,
+      logo: typeof item.logo === 'string' ? safeMediaUrl(item.logo) : undefined
+    });
+  }
+  return accepted;
+}
+
+export async function loadApprovedCatalog(): Promise<Channel[]> {
+  const response = await fetch('/catalog/approved.json', { cache: 'no-store' });
+  if (!response.ok) throw new Error('Katalog nije dostupan.');
+  return parseApprovedCatalog(await response.json());
+}

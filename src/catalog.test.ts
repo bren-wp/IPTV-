@@ -22,3 +22,16 @@ describe('M3U import', () => {
     expect(parseM3U('#EXTM3U\n#EXTINF:-1,Unsafe\nfile:///test')).toHaveLength(0);
   });
 });
+
+import { parseApprovedCatalog } from './catalog';
+describe('approved source catalog', () => {
+  it('rejects unverified or malformed bundled streams', () => {
+    expect(parseApprovedCatalog({schemaVersion:1,channels:[{name:'Unverified',url:'https://example.org/live.m3u8',country:'HR',category:'TV'}]})).toEqual([]);
+  });
+  it('accepts only documented approved source records', () => {
+    const channels = parseApprovedCatalog({schemaVersion:1,channels:[
+      {name:'Approved test',url:'https://example.org/live.m3u8',country:'HR',category:'TV',rights:{status:'approved',evidenceUrl:'https://example.org/license',reviewedAt:'2026-11-21'}}
+    ]});
+    expect(channels).toHaveLength(1);
+  });
+});
