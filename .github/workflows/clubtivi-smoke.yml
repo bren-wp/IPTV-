@@ -1,0 +1,68 @@
+name: clubTivi to IPTV+ Flutter rebrand smoke test
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  test-branding:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        edition: [free, pro]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install brand icon generator
+        run: npm install --no-audit --no-fund
+      - name: Convert original IPTV+ icon for Flutter and Windows
+        run: npm run tauri -- icon assets/brand/iptv-plus-icon.svg
+      - name: Apply downstream brand overlay on clean pinned clubTivi source
+        shell: bash
+        env:
+          EDITION: ${{ matrix.edition }}
+        run: |
+          python3 tools/clubtivi/prepare.py \
+            --edition "$EDITION" \
+            --icon-png src-tauri/icons/128x128@2x.png \
+            --icon-ico src-tauri/icons/icon.ico \
+            --version 0.1.0 --build-number 1
+      - name: Check authorship, app IDs, Free/Pro gate and regional lists
+        shell: bash
+        env:
+          EDITION: ${{ matrix.edition }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          root=Path('vendor/clubTivi')
+          edition=os.environ['EDITION']
+          assert 'Apache License' in (root/'LICENSE').read_text()
+          assert f'com.brendigo.iptvplus.{edition}' in (root/'android/app/build.gradle.kts').read_text()
+          app=(root/'lib/app/app.dart').read_text()
+          main=(root/'lib/main.dart').read_text()
+          providers=(root/'lib/features/providers/providers_screen.dart').read_text()
+          assert "title: iptvPlusTitle," in app
+          assert "FeatureGate.setTier(isIptvPlusPro ? AppTier.pro : AppTier.free);" in main
+          assert "iptvplus-iptvorg-si" in providers and "iptvplus-doubo-hr" in providers
+          assert (root/'assets/icon/iptv-plus-icon.png').is_file()
+          assert (root/'windows/runner/resources/app_icon.ico').is_file()
+          print(f'IPTV+ {edition.upper()}: patch and license checks passed')
+          PY
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Fetch Flutter dependencies
+        working-directory: vendor/clubTivi
+        run: flutter pub get
+      - name: Static Flutter analysis
+        working-directory: vendor/clubTivi
+        run: flutter analyze --no-fatal-infos
