@@ -6,7 +6,7 @@ import {
   Play, Search, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Star,
   Tv2, Upload, X
 } from 'lucide-react';
-import { type Category, type Channel, type Country, demoChannels, parseM3U, regions } from './catalog';
+import { type Channel, type Country, demoChannels, parseM3U, regions } from './catalog';
 
 type Screen = 'home' | 'live' | 'guide' | 'movies' | 'series' | 'kids' | 'favorites' | 'search' | 'sources' | 'settings';
 type MenuItem = { id: Screen; label: string; icon: typeof Home };
