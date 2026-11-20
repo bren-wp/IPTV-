@@ -152,3 +152,21 @@ Za odabrane javne izvore spremaju se samo ID-ovi, bez pristupnih podataka.
 Pojedini izvori mogu biti nedostupni zbog CORS-a, geoblokade ili prava emitera.
 
 Zbirke i postupanje s pravima detaljno: [GitHub sources](docs/GITHUB_SOURCES.md).
+
+## ⚡ Opcionalni clubTivi Flutter engine
+
+U repozitorij je dodan **pinned Apache-2.0 Git submodule** `vendor/clubTivi`
+i stvarni `tools/clubtivi/prepare.py` rebrand adapter. On u lokalnoj kopiji
+originalnog projekta mijenja naziv/ikone/boje, Android Free/Pro package ID,
+aktivira Free/Pro feature gate te dodaje **10 regionalnih i javnih lista
+na jedan klik** u postojeći clubTivi Providers zaslon.
+
+Službeni Tauri kod u `src/` ostaje glavni razvojni paket dok ne prođu
+Flutter testovi, novi dizajn, izvori i sva 8 obvezna build artefakta.
+
+- [Detaljne upute za clubTivi rebrand](tools/clubtivi/README.md)
+- [Treće strane i licence](THIRD_PARTY_NOTICES.md)
+- [Test rebrand adaptera](.github/workflows/clubtivi-smoke.yml)
+
+*Rebrand adapter je razvojni alat: produkcijski Flutter APK/AAB i Windows
+Portable/Setup još nisu provjereni i nisu objavljeni.*
