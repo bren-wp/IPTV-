@@ -91,6 +91,52 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
         encoding="utf-8",
     )
 
+    # Activate the upstream's existing Free/Pro feature-gating instead of merely
+    # changing the displayed edition name. Internal identifiers stay original.
+    main = root / "lib/main.dart"
+    replace_required(main, "import 'app/app.dart';",
+                     "import 'app/app.dart';\nimport 'core/feature_gate.dart';\nimport 'core/iptvplus_edition.dart';")
+    replace_required(main, "  MediaKit.ensureInitialized();",
+                     "  FeatureGate.setTier(isIptvPlusPro ? AppTier.pro : AppTier.free);\n  MediaKit.ensureInitialized();")
+    mark_modified(main, "//")
+
+    # clubTivi already has a TV remote-friendly, one-click provider chooser.
+    # Add regional GitHub public directories to its existing FreeTvProvider list.
+    regional = [
+        ("iptvplus-doubo-hr", "Hrvatska - Doubo", "https://cdn.jsdelivr.net/gh/streamline-iptv/iptv-playlists@dist/countries/hr.m3u"),
+        ("iptvplus-doubo-ba", "BiH - Doubo", "https://cdn.jsdelivr.net/gh/streamline-iptv/iptv-playlists@dist/countries/ba.m3u"),
+        ("iptvplus-doubo-rs", "Srbija - Doubo", "https://cdn.jsdelivr.net/gh/streamline-iptv/iptv-playlists@dist/countries/rs.m3u"),
+        ("iptvplus-iptvorg-hr", "Hrvatska - iptv-org", "https://iptv-org.github.io/iptv/countries/hr.m3u"),
+        ("iptvplus-iptvorg-si", "Slovenija - iptv-org", "https://iptv-org.github.io/iptv/countries/si.m3u"),
+        ("iptvplus-iptvorg-ba", "BiH - iptv-org", "https://iptv-org.github.io/iptv/countries/ba.m3u"),
+        ("iptvplus-iptvorg-rs", "Srbija - iptv-org", "https://iptv-org.github.io/iptv/countries/rs.m3u"),
+        ("iptvplus-biskyt-live", "Javni TV - Legal Free IPTV", "https://biskyt.github.io/legalFreeIPTVplaylist/live.m3u"),
+        ("iptvplus-biskyt-movies", "Filmovi - Legal Free IPTV", "https://biskyt.github.io/legalFreeIPTVplaylist/movies.m3u"),
+        ("iptvplus-biskyt-series", "Serije - Legal Free IPTV", "https://biskyt.github.io/legalFreeIPTVplaylist/series.m3u"),
+    ]
+    presets = "\n".join(
+        f"    FreeTvProvider(\n      id: '{identifier}',\n"
+        f"      name: '{label}',\n      url: '{url}',\n"
+        "      description: 'Vanjska javna zbirka; prava pojedinog programa nisu zajamcena.',\n"
+        "      icon: Icons.public_rounded,\n    ),"
+        for identifier, label, url in regional
+    )
+    providers = root / "lib/features/providers/providers_screen.dart"
+    replace_required(providers, "  static const all = [", "  static const all = [\n" + presets)
+    replace_required(providers, "title: const Text('IPTV Providers')", "title: const Text('IPTV+ · Izvori i liste')")
+    replace_required(providers, "const _SectionHeader(title: 'Free TV Providers')",
+                     "const _SectionHeader(title: 'Javne IPTV zbirke — prava sadržaja provjeriti')")
+    mark_modified(providers, "//")
+
+    # Resyncing an existing provider must not count as adding a new Free provider.
+    provider_manager = root / "lib/features/providers/provider_manager.dart"
+    replace_required(provider_manager,
+                     "    await _checkProviderLimit();\n    await _db.upsertProvider(",
+                     "    final current = await _db.getAllProviders();\n"
+                     "    if (!current.any((p) => p.id == id)) await _checkProviderLimit();\n"
+                     "    await _db.upsertProvider(")
+    mark_modified(provider_manager, "//")
+
     theme = root / "lib/app/theme.dart"
     for old, new in [
         ("Color(0xFF6C5CE7)", "Color(0xFF7C5CFF)"),
@@ -144,6 +190,7 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
     print("Run: flutter pub get")
     print(f"Run: flutter build apk --release --dart-define=IPTV_EDITION={edition}")
     print(f"Run: flutter build appbundle --release --dart-define=IPTV_EDITION={edition}")
+    print("Free/Pro feature gate and ten optional regional/public presets applied.")
     print("WARNING: Android release signing and production checks remain required.")
 
 
