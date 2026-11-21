@@ -310,7 +310,7 @@ def prepare(root: Path, icon_png: Path, icon_ico: Path, version: str, build_numb
         ]) {
           final value = pair.$2;
           if (value != null && value.length <= 256 &&
-              !value.contains('\r') && !value.contains('\n')) {
+              !value.codeUnits.contains(13) && !value.codeUnits.contains(10)) {
             await cache.setString(pair.$1, value);
           }
         }
