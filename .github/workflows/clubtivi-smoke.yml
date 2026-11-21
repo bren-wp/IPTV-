@@ -73,7 +73,11 @@ jobs:
           assert 'gradle-9.5.0-all.zip' in wrapper
           assert 'com.android.application") version "9.3.1"' in settings
           assert 'org.jetbrains.kotlin.android") version "2.4.20"' in settings
-          assert 'android.builtInKotlin=false' in props and 'android.newDsl=false' in props
+          assert 'android.builtInKotlin=false' not in props and 'android.newDsl=false' not in props
+          gradle=(root/'android/app/build.gradle.kts').read_text()
+          assert 'id("kotlin-android")' not in gradle
+          assert 'kotlinOptions {' not in gradle
+          assert 'compilerOptions {' in gradle and 'JvmTarget.JVM_17' in gradle
           assert "isIptvPlusPro ? 'pro' : 'free'" in updates
           assert 'clubanderson/clubTivi' not in updates
           assert 'REQUEST_INSTALL_PACKAGES' not in manifest
