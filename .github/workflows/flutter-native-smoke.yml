@@ -78,7 +78,7 @@ jobs:
         run: |
           npm run tauri -- icon assets/brand/iptv-plus-icon.svg
           if ($LASTEXITCODE -ne 0) { throw "Icon generation failed" }
-          python tools/clubtivi/prepare.py --edition $env:EDITION.ToLower() --icon-png src-tauri/icons/128x128@2x.png --icon-ico src-tauri/icons/icon.ico
+          python tools/clubtivi/prepare.py --edition $(($env:EDITION).ToLowerInvariant()) --icon-png src-tauri/icons/128x128@2x.png --icon-ico src-tauri/icons/icon.ico
           if ($LASTEXITCODE -ne 0) { throw "Flutter overlay failed" }
       - name: Build Flutter Windows and test UI
         working-directory: vendor/clubTivi
@@ -88,7 +88,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Flutter pub get failed" }
           flutter test
           if ($LASTEXITCODE -ne 0) { throw "Flutter tests failed" }
-          flutter build windows --release --dart-define=IPTV_EDITION=$env:EDITION.ToLower()
+          flutter build windows --release --dart-define=IPTV_EDITION=$(($env:EDITION).ToLowerInvariant())
           if ($LASTEXITCODE -ne 0) { throw "Flutter Windows build failed" }
       - name: Validate executable and one-file bundle creation
         shell: pwsh
