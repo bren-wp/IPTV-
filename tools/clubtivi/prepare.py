@@ -370,6 +370,25 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
         ),
         encoding="utf-8",
     )
+    # The old sideloading APK installer is obsolete now that updates open
+    # official release pages. Remove its exported platform surface entirely.
+    manifest_text = manifest.read_text(encoding="utf-8")
+    start = manifest_text.find("        <!-- FileProvider for in-app APK install -->")
+    end = manifest_text.find("        <!-- Don't delete the meta-data below.", start)
+    if start < 0 or end < 0:
+        raise RuntimeError("Expected upstream FileProvider section not found")
+    manifest_text = manifest_text[:start] + manifest_text[end:]
+    manifest.write_text(manifest_text, encoding="utf-8")
+    installer = root / "android/app/src/main/kotlin/io/github/clubanderson/clubtivi/MainActivity.kt"
+    installer.write_text(
+        "package io.github.clubanderson.clubtivi\n\n"
+        "// IPTV+ downstream: removed legacy APK sideload MethodChannel.\n"
+        "// Original clubTivi engine licensed under Apache-2.0.\n"
+        "import io.flutter.embedding.android.FlutterActivity\n\n"
+        "class MainActivity : FlutterActivity()\n", encoding="utf-8")
+    old_paths = root / "android/app/src/main/res/xml/file_paths.xml"
+    if old_paths.is_file():
+        old_paths.unlink()
     mark_modified(manifest, "<!--")
 
     # Flutter 3.50 requires Gradle >=9.3.1, AGP >=9.1.1. Keep compatible
