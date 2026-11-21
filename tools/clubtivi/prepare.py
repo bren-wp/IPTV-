@@ -83,7 +83,7 @@ def prepare(root: Path, icon_png: Path, icon_ico: Path, version: str, build_numb
     for previous, current in (
         ("  dio: ^5.7.0", "  dio: ^5.11.1"),
         ("  drift: ^2.22.1", "  drift: ^2.35.4"),
-        ("  drift_dev: ^2.22.1", "  drift_dev: ^2.35.4"),
+        ("  drift_dev: ^2.22.1", "  drift_dev: ^2.35.3"),
         ("  shared_preferences: ^2.5.4", "  shared_preferences: ^2.5.6"),
         ("  media_kit: ^1.1.11", "  media_kit: ^1.2.6"),
         ("  go_router: ^14.8.1", "  go_router: ^18.1.4"),
