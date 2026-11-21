@@ -56,6 +56,11 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
         raise RuntimeError("Edition must be free or pro.")
     if not re.fullmatch(r"\d+\.\d+\.\d+", version) or build_number < 1:
         raise RuntimeError("Invalid semantic version/build number.")
+    major, minor, patch = map(int, version.split("."))
+    if minor >= 1000 or patch >= 1000 or major >= 1000:
+        raise RuntimeError("Version components must be <1000 for monotonic Play versionCode")
+    # Every GitHub Release increments versionCode for both Free and Pro.
+    build_number = max(build_number, major * 1000000 + minor * 1000 + patch)
     if not icon_png.is_file() or icon_png.stat().st_size < 300:
         raise RuntimeError("Provide a genuine IPTV+ PNG launcher icon, at least 300 bytes.")
     if not icon_ico.is_file() or icon_ico.stat().st_size < 300:
@@ -186,6 +191,30 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
         if old in tv_shell.read_text(encoding="utf-8"):
             replace_required(tv_shell, old, new)
     mark_modified(tv_shell, "//")
+
+    # Never show another developer's releases as IPTV+ updates.
+    update_service = root / "lib/data/services/app_update_service.dart"
+    replace_required(update_service, "const _repo = 'clubanderson/clubTivi';",
+                     "const _repo = 'bren-wp/IPTV-';")
+    replace_required(update_service, "const _currentVersion = '0.4.0';",
+                     f"const _currentVersion = '{version}';")
+    replace_required(update_service,
+                     "final filePath = '${dir.path}/clubtivi-update.apk';",
+                     "final filePath = '${dir.path}/iptv-plus-update.apk';")
+    mark_modified(update_service, "//")
+
+    # Replace remaining visible upstream names without touching package imports.
+    # Keep original GitHub source URL for correct Apache-2.0 attribution.
+    for relative in ("lib/features/channels/channels_screen.dart",
+                     "lib/features/settings/settings_screen.dart"):
+        screen = root / relative
+        data = screen.read_text(encoding="utf-8")
+        data = data.replace("'clubTivi'", "'IPTV+'")
+        data = data.replace("'clubTivi v", "'IPTV+ v")
+        data = data.replace("clubTivi will save", "IPTV+ will save")
+        data = data.replace("clubTivi supports", "IPTV+ supports")
+        screen.write_text(data, encoding="utf-8")
+        mark_modified(screen, "//")
 
     theme = root / "lib/app/theme.dart"
     for old, new in [

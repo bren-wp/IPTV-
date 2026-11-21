@@ -1,3 +1,18 @@
+## Glavni reprodukcijski engine: clubTivi / Flutter
+
+**IPTV+ sada se razvija primarno kao Flutter aplikacija zasnovana na originalnoj
+clubTivi jezgri (Apache 2.0)**. Tauri/React je početni razvojni prototip i
+referenca dizajna, a ne predviđeni produkcijski engine za sljedeća izdanja.
+Naš autorski IPTV+ Flutter početni zaslon, logo i regionalni prikaz nadograđuju
+postojeću reprodukciju, EPG, Xtream i podršku za daljinski.
+
+- [Plan i arhitektura migracije](docs/ENGINE_MIGRATION.md)
+- [Adapter i Flutter IPTV+ home](tools/clubtivi/README.md)
+- [Izvorni autor i licence](THIRD_PARTY_NOTICES.md)
+
+Nativna instalacijska izdanja Android/Windows još zahtijevaju signing i QA;
+nisu predstavljena kao gotova dok sve provjere ne prođu.
+
 <div align="center">
 
 <img src="assets/brand/iptv-plus-logo.svg" alt="IPTV+ logo" width="285"/>
