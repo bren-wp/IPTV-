@@ -15,6 +15,6 @@ flutter test
 flutter build apk --debug
 ```
 
-Windows native: `flutter build windows --release`. Nema više `--edition` argumenta ni dvaju package ID-ova: `com.brendigo.iptvplus` koristi trajno omogućene prethodne Pro funkcije. Izgradnja potpisanog APK/AAB zahtijeva četiri privatna GitHub Secrets ključa (opisani u `docs/RELEASE_POLICY.md`). Sve promjene ovisnosti moraju proći Flutter testove.
+Windows native: `flutter build windows --release`. Nema više `--edition` argumenta ni dvaju package ID-ova: `com.brendigo.iptvplus` koristi trajno omogućene prethodne Pro funkcije. Automatizacija gradi nepotpisani APK/AAB bez GitHub Secrets; Android zahtijeva potpis za instalaciju i Play. Sve promjene ovisnosti moraju proći Flutter testove.
 
 Za screenshotove, prava sadržaja i licence vidi `assets/screens`, `THIRD_PARTY_NOTICES.md` i `docs/DEPENDENCIES.md`.

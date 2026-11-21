@@ -11,8 +11,8 @@ parser.add_argument("--version", required=True)
 args = parser.parse_args()
 folder = Path(args.directory)
 expected = [
-    f"IPTV-Plus-v{args.version}.apk",
-    f"IPTV-Plus-v{args.version}.aab",
+    f"IPTV-Plus-v{args.version}-Unsigned.apk",
+    f"IPTV-Plus-v{args.version}-Unsigned.aab",
     f"IPTV-Plus-v{args.version}-Portable.exe",
     f"IPTV-Plus-v{args.version}-Setup.exe",
 ]

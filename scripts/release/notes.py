@@ -10,14 +10,14 @@ Path("release/RELEASE-NOTES.md").write_text(f"""# IPTV+ v{version}
 **Jedno IPTV+ izdanje, bez Free/Pro podjele**, za Android, Android TV i Windows.
 
 ## Datoteke izdanja
-- IPTV-Plus-v{version}.apk — Android release APK
-- IPTV-Plus-v{version}.aab — Google Play Android App Bundle
+- IPTV-Plus-v{version}-Unsigned.apk — nepotpisani Android razvojni APK; NE MOŽE se instalirati
+- IPTV-Plus-v{version}-Unsigned.aab — nepotpisani Android App Bundle; NE MOŽE se objaviti na Google Play
 - IPTV-Plus-v{version}-Portable.exe — Windows bez instalacije
 - IPTV-Plus-v{version}-Setup.exe — Windows NSIS instalacija
 - SHA256SUMS.txt — SHA-256 zbrojevi
 - IPTV-Plus-v{version}-Branding.zip — svi brending i dizajnerski SVG-ovi
 
-Napredne Pro-tier funkcije koje clubTivi već implementira sada su uključene
+VAŽNO: Android zahtijeva digitalni potpis za instalaciju; Google Play zahtijeva potpisani AAB. Ovi Android paketi namjerno nisu spremni za korisničku distribuciju. Windows EXE nije code-sign potpisan.\n\nNapredne Pro-tier funkcije koje clubTivi već implementira sada su uključene
 u jedinstvenu aplikaciju bez prijave i reklamnih SDK-ova.
 
 IPTV+ ne sadrži neovlaštene premium programe ni prava na TV sadržaje.

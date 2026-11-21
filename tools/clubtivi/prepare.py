@@ -82,8 +82,8 @@ def prepare(root: Path, icon_png: Path, icon_ico: Path, version: str, build_numb
     # Full lockfile refresh requires Flutter analyze + native build gates.
     for previous, current in (
         ("  dio: ^5.7.0", "  dio: ^5.11.1"),
-        ("  drift: ^2.22.1", "  drift: ^2.35.4"),
-        ("  drift_dev: ^2.22.1", "  drift_dev: ^2.35.3"),
+        ("  drift: ^2.22.1", "  drift: 2.22.1"),
+        ("  drift_dev: ^2.22.1", "  drift_dev: 2.22.1"),
         ("  shared_preferences: ^2.5.4", "  shared_preferences: ^2.5.6"),
         ("  media_kit: ^1.1.11", "  media_kit: ^1.2.6"),
         ("  go_router: ^14.8.1", "  go_router: ^18.1.4"),
@@ -442,7 +442,7 @@ def prepare(root: Path, icon_png: Path, icon_ico: Path, version: str, build_numb
     replace_required(gradle, "minSdk = flutter.minSdkVersion", "minSdk = 24")
     # Signing with a debug key is not suitable for release. Never commit a private keystore.
     replace_required(gradle, 'signingConfig = signingConfigs.getByName("debug")',
-                     '// IPTV+ downstream: debug signing removed; signed release requires external CI credentials.')
+                     '// IPTV+ downstream: debug signing removed; build UNSIGNED developer artifacts only.')
     mark_modified(gradle, "//")
 
     window_main = root / "windows/runner/main.cpp"
@@ -471,7 +471,7 @@ def prepare(root: Path, icon_png: Path, icon_ico: Path, version: str, build_numb
     print("Run: flutter build apk --release")
     print("Run: flutter build appbundle --release")
     print("All advanced Pro-tier features enabled; ten optional regional sources included.")
-    print("WARNING: Android release signing and production checks remain required.")
+    print("WARNING: APK/AAB are UNSIGNED and not installable nor accepted by Google Play.")
 
 
 def main() -> None:

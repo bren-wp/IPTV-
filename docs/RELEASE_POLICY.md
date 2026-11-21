@@ -1,33 +1,24 @@
-# IPTV+ — jedan proizvod, četiri instalacijske datoteke
+# IPTV+ — jedinstvena aplikacija, nepotpisana razvojna izdanja
 
-**Više nema Free i Pro verzija.** Jedan IPTV+ s uključenim svim postojećim naprednim clubTivi mogućnostima i Android identifikatorom `com.brendigo.iptvplus`.
+IPTV+ je jedna aplikacija s uključenim naprednim funkcijama. U GitHub CI-u nisu potrebni privatni Android signing ključevi niti GitHub Actions Secrets.
 
-Za svaki `vX.Y.Z` Release zahtijeva:
+## Četiri obvezne datoteke
 
-1. `IPTV-Plus-vX.Y.Z.apk` — potpisani Android APK
-2. `IPTV-Plus-vX.Y.Z.aab` — potpisani Android App Bundle
-3. `IPTV-Plus-vX.Y.Z-Portable.exe` — Windows bez instalacije
-4. `IPTV-Plus-vX.Y.Z-Setup.exe` — Windows NSIS instalacija
+- `IPTV-Plus-vX.Y.Z-Unsigned.apk` — **nepotpisani razvojni APK**; Android odbija instalaciju
+- `IPTV-Plus-vX.Y.Z-Unsigned.aab` — **nepotpisani razvojni AAB**; Google Play odbija prijenos
+- `IPTV-Plus-vX.Y.Z-Portable.exe` — Windows bez instalacijskog postupka
+- `IPTV-Plus-vX.Y.Z-Setup.exe` — Windows NSIS instalacija
 
-Uz `SHA256SUMS.txt`, `IPTV-Plus-vX.Y.Z-Branding.zip` i `RELEASE-NOTES.md`. Nikad ne objavljuj djelomični release, placeholder ili neprovjereni APK/AAB.
+Release također uključuje SHA256SUMS, marketinški Branding ZIP i RELEASE-NOTES. Windows EXE nisu Authenticode potpisani.
 
-## Trajni ključ i GitHub Secrets
+**VAŽNO:** Nijedna potpuno nepotpisana Android aplikacija ne može se instalirati. Za funkcionalni APK na uređaju i AAB za Google Play kasnije je nužno potpisivanje, čak i kada se koristi besplatni lokalno generirani certifikat. Nemoj nepotpisane datoteke predstavljati kao instalacijske pakete.
 
-Potrebna su samo **četiri** privatna Repository secrets:
+Workflow ne koristi `sign_flutter_android.py`, ne provjerava Secrets i ne koristi privatne ključeve. Provjerava da Android APK nije potpisan te da je AAB bez JAR potpisa. Izdaje samo razvojni prerelease ako su svi paketi stvarno izgrađeni; ne stvara prazne ili lažne datoteke. Izvorni APK/AAB paketni ID je `com.brendigo.iptvplus`, različit od starih Free/Pro instalacija.
 
-- `IPTV_ANDROID_KEYSTORE_BASE64`
-- `IPTV_ANDROID_STORE_PASSWORD`
-- `IPTV_ANDROID_KEY_PASSWORD`
-- `IPTV_ANDROID_KEY_ALIAS`
+## Provjere
 
-Postavi ih u GitHub → Settings → Secrets and variables → Actions → New repository secret. Ne objavljuj privatne ključeve, keystore ni lozinke u chatu, issueu ili repozitoriju. Bez tajni automatski release se jasno preskače, a ručno zatraženi release završava pogreškom.
+Flutter testovi, nativna Android i Windows izgradnja, sadržaj arhiva, četiri paketa, SHA-256. Fizčki Android/Windows/Android TV QA obvezan je prije bilo kakve tvrdnje o produkcijskoj spremnosti.
 
-## Uvjeti
+Brending: 39 SVG konceptnih prikaza i vlastite ikone. Prava TV sadržaja, slika i EPG-a uvijek se provjeravaju odvojeno.
 
-Nakon povećanja `package.json` i `src-tauri/tauri.conf.json` na novu verziju, GitHub Actions mora dovršiti Flutter testove, stvarni Android release i provjere potpisa oba Android paketa, Windows Portable+Setup izgradnju, validaciju četiri strukturalno prepoznatljive datoteke i SHA-256. Izdanje je `prerelease` dok fizički uređaji i potpuni sigurnosni/visual QA nisu dokumentirani.
-
-**Novi Android package ID nije automatska nadogradnja nekadašnjih `.free` i `.pro` aplikacija.** Ako su već na Play Storeu, prijelaz zahtijeva zaseban plan migracije. Windows EXE preporučuje se potpisati code-sign certifikatom.
-
-Branding ZIP sadrži svih 39 SVG koncepata iz `assets/screens` i originalne ikone. To nisu stvarne snimke zaslona izgrađene aplikacije. Prava na ponuđene streamove i njihove logotipe/EPG provjeravaju se zasebno; premium Arena Sport nije uključen bez autorizacije.
-
-Dodatno: [Ovisnosti](DEPENDENCIES.md) · [Arhitektura](ENGINE_MIGRATION.md).
+[Ovisnosti](DEPENDENCIES.md)

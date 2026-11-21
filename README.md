@@ -37,12 +37,12 @@ IPTV+ temelji se na [clubTivi](https://github.com/clubanderson/clubTivi) Flutter
 
 ## 📦 Svaki GitHub Release sadrži četiri datoteke
 
-- `IPTV-Plus-vX.Y.Z.apk` — Android
-- `IPTV-Plus-vX.Y.Z.aab` — Android App Bundle
+- `IPTV-Plus-vX.Y.Z-Unsigned.apk` — Android razvojni paket (nije instalabilan)
+- `IPTV-Plus-vX.Y.Z-Unsigned.aab` — Android App Bundle (nije spreman za Play)
 - `IPTV-Plus-vX.Y.Z-Portable.exe` — Windows bez instalacije
 - `IPTV-Plus-vX.Y.Z-Setup.exe` — Windows instalacija
 
-Uz `SHA256SUMS.txt`, bilješke i ZIP punog brendinga. Izdanja se neće objavljivati dok četiri stvarna paketa nisu potvrđena i Android potpisan. [Pravila izdavanja](docs/RELEASE_POLICY.md).
+Uz `SHA256SUMS.txt`, bilješke i ZIP punog brendinga. Izdanja se neće objavljivati dok četiri stvarna paketa nisu potvrđena; Android paketi ostaju nepotpisani i neprikladni za instalaciju/Google Play. [Pravila izdavanja](docs/RELEASE_POLICY.md).
 
 ## ⚙️ Pokretanje razvoja
 
@@ -69,3 +69,5 @@ IPTV+ ne uključuje neovlaštene premium streamove, ne zaobilazi DRM, a prisutno
 **IPTV+ by Brendigo** · [Issues](https://github.com/bren-wp/IPTV-/issues) · [Releases](https://github.com/bren-wp/IPTV-/releases)
 
 </div>
+
+**Potpisivanje nije dio ovog CI-a:** za Android instalaciju i Play ipak će biti potreban potpis. Nepotpisani Android paketi mogu služiti samo za analizu i naknadno potpisivanje.

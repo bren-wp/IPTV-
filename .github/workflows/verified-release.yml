@@ -12,27 +12,7 @@ concurrency:
   group: iptv-plus-unified-release
   cancel-in-progress: false
 jobs:
-  signing-readiness:
-    name: One permanent Android signing key
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      ready: ${{ steps.signing.outputs.ready }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check signing secrets before expensive release jobs
-        id: signing
-        env:
-          IPTV_ANDROID_KEYSTORE_BASE64: ${{ secrets.IPTV_ANDROID_KEYSTORE_BASE64 }}
-          IPTV_ANDROID_STORE_PASSWORD: ${{ secrets.IPTV_ANDROID_STORE_PASSWORD }}
-          IPTV_ANDROID_KEY_PASSWORD: ${{ secrets.IPTV_ANDROID_KEY_PASSWORD }}
-          IPTV_ANDROID_KEY_ALIAS: ${{ secrets.IPTV_ANDROID_KEY_ALIAS }}
-        run: python3 scripts/release/check_signing_env.py
-
   preflight:
-    needs: signing-readiness
-    if: needs.signing-readiness.outputs.ready == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -123,10 +103,6 @@ jobs:
       contents: read
     env:
       RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
-      IPTV_ANDROID_KEYSTORE_BASE64: ${{ secrets.IPTV_ANDROID_KEYSTORE_BASE64 }}
-      IPTV_ANDROID_STORE_PASSWORD: ${{ secrets.IPTV_ANDROID_STORE_PASSWORD }}
-      IPTV_ANDROID_KEY_PASSWORD: ${{ secrets.IPTV_ANDROID_KEY_PASSWORD }}
-      IPTV_ANDROID_KEY_ALIAS: ${{ secrets.IPTV_ANDROID_KEY_ALIAS }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -147,11 +123,10 @@ jobs:
           flutter-version: '3.50.1'
           cache: true
       - run: npm install --no-audit --no-fund
-      - name: Build one fully featured app using permanent signing key
+      - name: Prepare single unsigned Android app
         run: |
           npm run tauri -- icon assets/brand/iptv-plus-icon.svg
           python3 tools/clubtivi/prepare.py --icon-png src-tauri/icons/128x128@2x.png --icon-ico src-tauri/icons/icon.ico --version "$RELEASE_VERSION"
-          python3 tools/clubtivi/sign_flutter_android.py
       - name: Upgrade compatible Pub packages and compile APK and AAB
         working-directory: vendor/clubTivi
         run: |
@@ -159,7 +134,7 @@ jobs:
           flutter test
           flutter build apk --release
           flutter build appbundle --release
-      - name: Verify both Android signatures and expected single app ID
+      - name: Verify both Android artifacts are UNSIGNED (not installable)
         run: |
           mkdir -p release
           apk=vendor/clubTivi/build/app/outputs/flutter-apk/app-release.apk
@@ -167,10 +142,25 @@ jobs:
           test -s "$apk" && test -s "$aab"
           signer="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
           test -x "$signer"
-          "$signer" verify --verbose "$apk"
-          jarsigner -verify -strict "$aab"
-          cp "$apk" "release/IPTV-Plus-v$RELEASE_VERSION.apk"
-          cp "$aab" "release/IPTV-Plus-v$RELEASE_VERSION.aab"
+          if "$signer" verify --verbose "$apk"; then
+            echo "::error::Android APK is signed unexpectedly; this pipeline produces UNSIGNED developer artifacts only"
+            exit 1
+          fi
+          python3 - "$apk" "$aab" <<'PY'
+          import sys, zipfile
+          for path in sys.argv[1:]:
+              with zipfile.ZipFile(path) as archive:
+                  names = archive.namelist()
+                  required = ("AndroidManifest.xml" if path.endswith(".apk")
+                              else "base/manifest/AndroidManifest.xml")
+                  assert required in names, f"Android manifest missing: {path}"
+                  if path.endswith(".aab"):
+                      assert not any(n.startswith("META-INF/") and n.upper().endswith((".RSA", ".DSA", ".EC", ".SF"))
+                                     for n in names), "AAB appears JAR-signed"
+          print("Unsigned Android packages generated (not installable / not Play-ready)")
+          PY
+          cp "$apk" "release/IPTV-Plus-v$RELEASE_VERSION-Unsigned.apk"
+          cp "$aab" "release/IPTV-Plus-v$RELEASE_VERSION-Unsigned.aab"
       - uses: actions/upload-artifact@v4
         with:
           name: iptv-android
@@ -199,11 +189,11 @@ jobs:
           zip -q -r "release/IPTV-Plus-v$RELEASE_VERSION-Branding.zip" assets/brand assets/previews assets/screens
           python3 scripts/release/notes.py "$RELEASE_VERSION"
           python3 scripts/release/validate_artifacts.py --directory release --version "$RELEASE_VERSION"
-      - name: Publish only a complete verified GitHub prerelease
+      - name: Publish four-file UNSIGNED Android development prerelease
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.preflight.outputs.tag }}
         run: |
           gh release create "$TAG" release/* --prerelease --target "$GITHUB_SHA" \
-            --title "IPTV+ $TAG — Android & Windows" \
+            --title "IPTV+ $TAG — UNSIGNED Android development and Windows builds" \
             --notes-file release/RELEASE-NOTES.md
