@@ -2,7 +2,6 @@ name: IPTV+ Flutter native build smoke
 on:
   push:
     branches: [main, "feat/**"]
-  pull_request:
   workflow_dispatch:
 
 concurrency:

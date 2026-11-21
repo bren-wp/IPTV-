@@ -2,7 +2,6 @@ name: clubTivi to IPTV+ Flutter rebrand smoke test
 on:
   push:
     branches: [main, "feat/**"]
-  pull_request:
   workflow_dispatch:
 concurrency:
   group: iptv-clubtivi-${{ github.head_ref || github.ref_name }}
