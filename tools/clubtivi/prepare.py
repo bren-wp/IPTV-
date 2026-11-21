@@ -168,15 +168,15 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
 
     channels = root / "lib/features/channels/channels_screen.dart"
     replace_required(channels, "  Timer? _nowPlayingTimer;",
-                     "  Timer? _nowPlayingTimer;\\n  Timer? _iptvPlusRefreshTimer;")
+                     "  Timer? _nowPlayingTimer;\n  Timer? _iptvPlusRefreshTimer;")
     replace_required(channels, "    _loadSearchHistory();",
-                     "    _loadSearchHistory();\\n"
-                     "    Future.microtask(() => ref.read(providerManagerProvider).refreshIptvPlusPublicSources());\\n"
-                     "    _iptvPlusRefreshTimer = Timer.periodic(const Duration(hours: 12), (_) {\\n"
-                     "      if (mounted) unawaited(ref.read(providerManagerProvider).refreshIptvPlusPublicSources());\\n"
+                     "    _loadSearchHistory();\n"
+                     "    Future.microtask(() => ref.read(providerManagerProvider).refreshIptvPlusPublicSources());\n"
+                     "    _iptvPlusRefreshTimer = Timer.periodic(const Duration(hours: 12), (_) {\n"
+                     "      if (mounted) unawaited(ref.read(providerManagerProvider).refreshIptvPlusPublicSources());\n"
                      "    });")
     replace_required(channels, "    _nowPlayingTimer?.cancel();",
-                     "    _nowPlayingTimer?.cancel();\\n    _iptvPlusRefreshTimer?.cancel();")
+                     "    _nowPlayingTimer?.cancel();\n    _iptvPlusRefreshTimer?.cancel();")
     mark_modified(channels, "//")
 
     mark_modified(provider_manager, "//")
