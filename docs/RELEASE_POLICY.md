@@ -34,7 +34,9 @@ Windows potpisi (.exe) dodatna su tema: `Setup.exe` i `Portable.exe` mogu se pok
 - Push/merge na `main` ili ručni `workflow_dispatch` pokreće 4 nativna posla: Android Free/Pro i Windows Free/Pro.
 - `validate_artifacts.py` provjerava osnovnu strukturu i prisutnost svih 8 paketa; Android build dodatno provjerava digitalne potpise.
 - Tek nakon svih zelenih jobova paket se objavljuje kao **novi** GitHub Release s novom verzijom.
-- Ako potrebni ključevi nedostaju, ako je build neispravan ili je neka datoteka neprisutna, Release se **ne smije objaviti**; ostaje CI neuspjeh koji zahtijeva popravak.
+- Nakon spajanja u `main`, `signing-readiness` prvo provjerava samo **prisutnost** osam privatnih Android signing secrets. Ako nisu postavljeni, automatsko izdanje se **preskače**, a GitHub Actions summary jasno navodi `RELEASE NOT PUBLISHED` i nedostajuće **nazive** tajni (ne vrijednosti). To nije lažno objavljeno izdanje.
+- Ručno zatraženo izdanje bez tajni namjerno prijavljuje grešku umjesto stvaranja nepotpunih paketa.
+- Kada su tajne dostupne, buildovi i dalje moraju proći provjere potpisa i svih osam obveznih paketa; neispravna binarna datoteka blokira GitHub Release. `signing-readiness` provjerava samo prisutnost, ne valjanost ključa.
 
 ## Vizualna isporuka
 - `assets/brand/`: primarni logo i izvorne ikone.
@@ -47,3 +49,5 @@ Windows potpisi (.exe) dodatna su tema: `Setup.exe` i `Portable.exe` mogu se pok
 
 ## Zakonito unaprijed uključeni izvori
 Korisnik treba moći odabrati kanal bez ručnog dodavanja liste, ali samo za izvore za koje imamo dokazano dopuštenje. Trenutačni `public/catalog/approved.json` prazan je dok taj uvjet nije ispunjen. Premium Arena Sport i sličan sadržaj nije uključен bez prava.
+
+**Postavljanje:** otvori GitHub repozitorij → Settings → Secrets and variables → Actions → New repository secret i dodaj osam navedenih vrijednosti. Za Google Play postojeće Free/Pro aplikacije obavezno zadrži trajne upload ključeve. Ne šalji privatne keystore datoteke ili lozinke kroz PR, issue, README ili chat.

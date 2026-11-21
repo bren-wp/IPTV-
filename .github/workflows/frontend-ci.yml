@@ -1,7 +1,7 @@
 name: IPTV+ frontend checks
 on:
   push:
-    branches: [main, "feat/**"]
+    branches: [main, "feat/**", "fix/**"]
 concurrency:
   group: iptv-frontend-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
@@ -24,5 +24,7 @@ jobs:
         run: npm test
       - name: Verify every screen concept is versioned
         run: python3 scripts/release/validate_designs.py
+      - name: Test release signing readiness (no secret values)
+        run: python3 -m unittest discover scripts/release -p 'test_*.py'
       - name: Compile Python release scripts
         run: python3 -m compileall -q scripts/release

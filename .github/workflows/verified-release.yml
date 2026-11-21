@@ -12,7 +12,30 @@ concurrency:
   group: iptv-plus-release
   cancel-in-progress: false
 jobs:
+  signing-readiness:
+    name: Android signing prerequisites (no key material exposed)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Free/Pro signing secrets before native builds
+        id: check
+        env:
+          IPTV_FREE_KEYSTORE_BASE64: ${{ secrets.IPTV_FREE_KEYSTORE_BASE64 }}
+          IPTV_FREE_STORE_PASSWORD: ${{ secrets.IPTV_FREE_STORE_PASSWORD }}
+          IPTV_FREE_KEY_PASSWORD: ${{ secrets.IPTV_FREE_KEY_PASSWORD }}
+          IPTV_FREE_KEY_ALIAS: ${{ secrets.IPTV_FREE_KEY_ALIAS }}
+          IPTV_PRO_KEYSTORE_BASE64: ${{ secrets.IPTV_PRO_KEYSTORE_BASE64 }}
+          IPTV_PRO_STORE_PASSWORD: ${{ secrets.IPTV_PRO_STORE_PASSWORD }}
+          IPTV_PRO_KEY_PASSWORD: ${{ secrets.IPTV_PRO_KEY_PASSWORD }}
+          IPTV_PRO_KEY_ALIAS: ${{ secrets.IPTV_PRO_KEY_ALIAS }}
+        run: python3 scripts/release/check_signing_env.py
   preflight:
+    needs: signing-readiness
+    if: needs.signing-readiness.outputs.ready == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
