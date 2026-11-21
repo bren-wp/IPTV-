@@ -284,7 +284,7 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
     # REQUEST_INSTALL_PACKAGES. Open the official verified release page instead.
     replace_required(update_service,
                      "if (name.endsWith('.apk')) {",
-                     "if (name.endsWith('-\${isIptvPlusPro ? 'pro' : 'free'}.apk')) {")
+                     "if (name.endsWith('-${isIptvPlusPro ? 'pro' : 'free'}.apk')) {")
     replace_required(update_service,
                      "import 'package:dio/dio.dart';",
                      "import 'package:dio/dio.dart';\nimport '../../core/iptvplus_edition.dart';")
