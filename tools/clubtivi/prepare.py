@@ -463,6 +463,35 @@ def prepare(root: Path, icon_png: Path, icon_ico: Path, version: str, build_numb
     updater_data = updater_data.replace(
         "  static const _channel = MethodChannel('io.github.clubanderson.clubtivi/installer');\n",
         "")
+    # GitHub /releases/latest excludes prereleases; IPTV+ publishes
+    # verified development prereleases. Never offer an unsigned APK as an
+    # in-app installation. Always open the source release page externally.
+    original_endpoint = "'https://api.github.com/repos/$_repo/releases/latest'"
+    new_endpoint = "'https://api.github.com/repos/$_repo/releases?per_page=10'"
+    if original_endpoint not in updater_data:
+        raise RuntimeError("Release endpoint upstream changed")
+    updater_data = updater_data.replace(original_endpoint, new_endpoint)
+    original_map = "final data = response.data as Map<String, dynamic>;"
+    replacement_map = (
+        "final responseList = response.data;\n"
+        "      if (responseList is! List) return null;\n"
+        "      final releases = responseList.whereType<Map<String, dynamic>>()\n"
+        "          .where((entry) => entry['draft'] != true &&\n"
+        "              (entry['tag_name'] as String? ?? '').startsWith('v'))\n"
+        "          .toList();\n"
+        "      if (releases.isEmpty) return null;\n"
+        "      final data = releases.first;"
+    )
+    if original_map not in updater_data:
+        raise RuntimeError("Release decoding upstream changed")
+    updater_data = updater_data.replace(original_map, replacement_map)
+    asset_start = updater_data.find("      String? apkUrl;")
+    asset_end = updater_data.find("\n      return ReleaseInfo(", asset_start)
+    if asset_start < 0 or asset_end < 0:
+        raise RuntimeError("Update assets layout changed")
+    updater_data = updater_data[:asset_start] + updater_data[asset_end:]
+    updater_data = updater_data.replace("apkDownloadUrl: apkUrl,",
+                                        "apkDownloadUrl: null,")
     update_service.write_text(updater_data, encoding="utf-8")
 
     screen = root / "lib/features/channels/channels_screen.dart"
