@@ -391,8 +391,9 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
         old_paths.unlink()
     mark_modified(manifest, "<!--")
 
-    # Flutter 3.50 requires Gradle >=9.3.1, AGP >=9.1.1. Keep compatible
-    # legacy Kotlin/plugin DSL while dependencies complete AGP9 migration.
+    # Flutter 3.50 / AGP 9: migrate to public Android DSL + built-in Kotlin.
+    # The old plugin/kotlinOptions blocks are Kotlin DSL script errors under
+    # Gradle 9, not harmless warnings. Do not restore the legacy escape hatches.
     wrapper = root / "android/gradle/wrapper/gradle-wrapper.properties"
     replace_required(wrapper, "gradle-8.14-all.zip", "gradle-9.5.0-all.zip")
     settings_gradle = root / "android/settings.gradle.kts"
@@ -404,12 +405,33 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
                      'id("org.jetbrains.kotlin.android") version "2.4.20" apply false')
     gradle_properties = root / "android/gradle.properties"
     properties_text = gradle_properties.read_text(encoding="utf-8")
-    for entry in ("android.builtInKotlin=false", "android.newDsl=false"):
-        if entry not in properties_text:
-            properties_text += "\n" + entry
-    gradle_properties.write_text(properties_text.rstrip() + "\n", encoding="utf-8")
+    properties_text = "\n".join(
+        line for line in properties_text.splitlines()
+        if not line.startswith(("android.builtInKotlin=", "android.newDsl="))
+    ) + "\n"
+    gradle_properties.write_text(properties_text, encoding="utf-8")
 
     gradle = root / "android/app/build.gradle.kts"
+    # AGP 9 built-in Kotlin makes the legacy KGP and kotlinOptions obsolete.
+    replace_required(gradle, '    id("kotlin-android")\n', "")
+    replace_required(gradle,
+                     "    kotlinOptions {\n"
+                     "        jvmTarget = JavaVersion.VERSION_17.toString()\n"
+                     "    }\n\n", "")
+    gradle_source = gradle.read_text(encoding="utf-8")
+    flutter_marker = '\nflutter {\n'
+    if flutter_marker not in gradle_source:
+        raise RuntimeError("Flutter Gradle marker not found")
+    gradle_source = gradle_source.replace(
+        flutter_marker,
+        "\nkotlin {\n"
+        "    compilerOptions {\n"
+        "        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17\n"
+        "    }\n"
+        "}\n" + flutter_marker,
+        1,
+    )
+    gradle.write_text(gradle_source, encoding="utf-8")
     replace_required(gradle, 'applicationId = "io.github.clubanderson.clubtivi"', f'applicationId = "{APP_IDS[edition]}"')
     replace_required(gradle, "minSdk = flutter.minSdkVersion", "minSdk = 24")
     # Signing with a debug key is not suitable for release. Never commit a private keystore.
