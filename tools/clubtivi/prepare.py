@@ -140,6 +140,45 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
                      "    final current = await _db.getAllProviders();\n"
                      "    if (!current.any((p) => p.id == id)) await _checkProviderLimit();\n"
                      "    await _db.upsertProvider(")
+
+    # Periodically refresh only sources the user explicitly added from our
+    # regional directory. Errors never remove the last known channel list.
+    manager_src = provider_manager.read_text(encoding="utf-8")
+    class_anchor = "  /// Resolve missing logos for a set of channels."
+    if class_anchor not in manager_src:
+        raise RuntimeError("ProviderManager refresh insertion point changed")
+    refresh_fn = """  /// Sync opted-in public IPTV+ directories; never scrape premium sources.
+  Future<void> refreshIptvPlusPublicSources() async {
+    final providers = await _db.getAllProviders();
+    for (final provider in providers.where(
+      (p) => p.id.startsWith('iptvplus-') && p.type == 'm3u')) {
+      try {
+        await refreshProvider(provider.id);
+      } catch (error) {
+        debugPrint('IPTV+ source refresh failed: $error');
+      }
+    }
+  }
+
+"""
+    provider_manager.write_text(
+        manager_src.replace(class_anchor, refresh_fn + class_anchor, 1),
+        encoding="utf-8",
+    )
+
+    channels = root / "lib/features/channels/channels_screen.dart"
+    replace_required(channels, "  Timer? _nowPlayingTimer;",
+                     "  Timer? _nowPlayingTimer;\\n  Timer? _iptvPlusRefreshTimer;")
+    replace_required(channels, "    _loadSearchHistory();",
+                     "    _loadSearchHistory();\\n"
+                     "    Future.microtask(() => ref.read(providerManagerProvider).refreshIptvPlusPublicSources());\\n"
+                     "    _iptvPlusRefreshTimer = Timer.periodic(const Duration(hours: 12), (_) {\\n"
+                     "      if (mounted) unawaited(ref.read(providerManagerProvider).refreshIptvPlusPublicSources());\\n"
+                     "    });")
+    replace_required(channels, "    _nowPlayingTimer?.cancel();",
+                     "    _nowPlayingTimer?.cancel();\\n    _iptvPlusRefreshTimer?.cancel();")
+    mark_modified(channels, "//")
+
     mark_modified(provider_manager, "//")
 
     # IPTV+ is the primary Flutter application UI, keeping clubTivi as the engine.
@@ -160,6 +199,45 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
                      "      path: '/home',\n"
                      "      builder: (context, state) => const IptvPlusHomeScreen(),\n"
                      "    ),")
+
+    # Determine TV layout at route build time. Upstream routed before
+    # MediaQuery/PlatformInfo detection, so Android TV could use mobile layout.
+    old_routes = """  if (PlatformInfo.isTV) {
+    return GoRouter(
+      initialLocation: '/splash',
+      routes: [
+        ShellRoute(
+          builder: (context, state, child) => TvShell(child: child),
+          routes: sidebarRoutes,
+        ),
+        ...standaloneRoutes,
+      ],
+    );
+  }
+
+  // Non-TV: flat routes (original behavior)
+  return GoRouter(
+    initialLocation: '/splash',
+    routes: [
+      ...sidebarRoutes,
+      ...standaloneRoutes,
+    ],
+  );"""
+    new_routes = """  return GoRouter(
+    initialLocation: '/splash',
+    routes: [
+      ShellRoute(
+        builder: (context, state, child) {
+          PlatformInfo.detectFromContext(context);
+          return PlatformInfo.isTV ? TvShell(child: child) : child;
+        },
+        routes: sidebarRoutes,
+      ),
+      ...standaloneRoutes,
+    ],
+  );"""
+    replace_required(router, old_routes, new_routes)
+
     mark_modified(router, "//")
 
     splash = root / "lib/features/splash/splash_screen.dart"
