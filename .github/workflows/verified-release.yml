@@ -127,40 +127,16 @@ jobs:
         run: |
           npm run tauri -- icon assets/brand/iptv-plus-icon.svg
           python3 tools/clubtivi/prepare.py --icon-png src-tauri/icons/128x128@2x.png --icon-ico src-tauri/icons/icon.ico --version "$RELEASE_VERSION"
-      - name: Upgrade compatible Pub packages and compile APK and AAB
+      - name: Resolve Flutter dependencies and run tests
         working-directory: vendor/clubTivi
         run: |
           flutter pub upgrade
           flutter test
-          flutter build apk --release
-          flutter build appbundle --release
-      - name: Verify both Android artifacts are UNSIGNED (not installable)
-        run: |
-          mkdir -p release
-          apk=vendor/clubTivi/build/app/outputs/flutter-apk/app-release.apk
-          aab=vendor/clubTivi/build/app/outputs/bundle/release/app-release.aab
-          test -s "$apk" && test -s "$aab"
-          signer="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
-          test -x "$signer"
-          if "$signer" verify --verbose "$apk"; then
-            echo "::error::Android APK is signed unexpectedly; this pipeline produces UNSIGNED developer artifacts only"
-            exit 1
-          fi
-          python3 - "$apk" "$aab" <<'PY'
-          import sys, zipfile
-          for path in sys.argv[1:]:
-              with zipfile.ZipFile(path) as archive:
-                  names = archive.namelist()
-                  required = ("AndroidManifest.xml" if path.endswith(".apk")
-                              else "base/manifest/AndroidManifest.xml")
-                  assert required in names, f"Android manifest missing: {path}"
-                  if path.endswith(".aab"):
-                      assert not any(n.startswith("META-INF/") and n.upper().endswith((".RSA", ".DSA", ".EC", ".SF"))
-                                     for n in names), "AAB appears JAR-signed"
-          print("Unsigned Android packages generated (not installable / not Play-ready)")
-          PY
-          cp "$apk" "release/IPTV-Plus-v$RELEASE_VERSION-Unsigned.apk"
-          cp "$aab" "release/IPTV-Plus-v$RELEASE_VERSION-Unsigned.aab"
+      - name: Assemble unsigned Android release APK and AAB
+        working-directory: vendor/clubTivi/android
+        run: bash ./gradlew :app:assembleRelease :app:bundleRelease --no-daemon
+      - name: Validate and package unsigned Android binaries
+        run: python3 scripts/release/collect_unsigned_android.py --root vendor/clubTivi --directory release --version "$RELEASE_VERSION"
       - uses: actions/upload-artifact@v4
         with:
           name: iptv-android
