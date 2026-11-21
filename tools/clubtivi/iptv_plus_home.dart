@@ -28,20 +28,31 @@ class IptvPlusHomeScreen extends StatelessWidget {
                   delegate: SliverChildListDelegate([
                     Row(children: [
                       Image.asset('assets/icon/iptv-plus-icon.png',
-                        width: 44, height: 44, semanticLabel: 'IPTV+ ikona'),
-                      const SizedBox(width: 12),
-                      const Text('IPTV+', style: TextStyle(fontSize: 28,
-                        fontWeight: FontWeight.w800, color: Colors.white)),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: accent.withValues(alpha: .6)),
-                          color: accent.withValues(alpha: .14),
+                        width: compact ? 36 : 44, height: compact ? 36 : 44,
+                        semanticLabel: 'IPTV+ ikona'),
+                      SizedBox(width: compact ? 8 : 12),
+                      const Expanded(
+                        child: Text('IPTV+', maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 26,
+                            fontWeight: FontWeight.w800, color: Colors.white)),
+                      ),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: compact ? 120 : 200),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: compact ? 8 : 13, vertical: 8),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: accent.withValues(alpha: .6)),
+                            color: accent.withValues(alpha: .14),
+                          ),
+                          child: Text('Sve uključeno', maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: Colors.white,
+                              fontSize: compact ? 11 : 13,
+                              fontWeight: FontWeight.w700)),
                         ),
-                        child: const Text('Sve uključeno', style: TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.w700)),
                       ),
                     ]),
                     const SizedBox(height: 23),
