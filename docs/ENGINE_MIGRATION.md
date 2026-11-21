@@ -35,3 +35,9 @@ Direktoriji GitHub lista ne jamče pravo korištenja sadržaja. Za unaprijed pon
 - Pokrenuti `flutter-native-smoke.yml` na Windows runneru i Android emulatoru/runneru; provjeriti pakete.
 - Izraditi i odobriti **stvarne** snimke svakog ekrana uz usporedbu s konceptom.
 - Postaviti tajne za Google Play upload ključeve, bez iznošenja u javni repozitorij.
+
+## Sigurno ažuriranje Free/Pro izdanja
+
+U clubTivi izvedbi IPTV+ provjerava izdanja na `bren-wp/IPTV-`, a ne na izvornom clubTivi računu. Pri prikazu nove verzije može ponuditi samo APK namijenjen odgovarajućem Free ili Pro izdanju; preuzimanje/instalacija ne obavljaju se automatski. Korisnik otvara službenu GitHub stranicu izdanja u vanjskom pregledniku. Uklonjen je prethodni Flutter/Android kod za sideloadanje APK-ova (`MethodChannel`, `FileProvider`, `REQUEST_INSTALL_PACKAGES`). To uklanja nepotrebno dopuštenje i izbjegava automatsko preskakanje pravila distribucije u trgovinama aplikacija.
+
+Flutter/Android alatni lanac zaključan je na Flutter 3.50.1, Gradle 9.5.0, AGP 9.3.1 i Kotlin 2.4.20. Za kompatibilnost starih Flutter dodataka privremeno su uključene `android.newDsl=false` i `android.builtInKotlin=false`. Te postavke treba ukloniti kada svi dodaci budu spremni za novi DSL.

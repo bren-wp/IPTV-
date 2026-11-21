@@ -12,3 +12,9 @@
 - IPTV+ ne sadrži reklamne SDK-ove i ne traži registraciju.
 
 Prijave propusta: otvorite privatnu sigurnosnu prijavu preko GitHub Security Advisories repozitorija, ne javni issue s osjetljivim podacima.
+
+## Dodatna sigurnost Flutter/clubTivi integracije
+
+- Prilikom rebrandiranja uklanja se originalni Android `REQUEST_INSTALL_PACKAGES`, FileProvider i MethodChannel za automatsku instalaciju APK-a; aplikacija umjesto toga otvara službenu stranicu izdanja.
+- GitHub provjera nove verzije filtrira binarne datoteke na odgovarajući Free/Pro sufiks, kako Pro ne bi preuzeo Free APK.
+- Funkcionalno zatvaranje sigurnosne provjere zahtijeva Android/Windows native testove, reviziju licence svih dodataka i potvrdu pravila Google Playa.
