@@ -7,7 +7,7 @@ U `tools/clubtivi/prepare.py` povećane su minimalne verzije izravnih paketa:
 | Paket | Staro | Novo |
 |---|---|---|
 | dio | ^5.7.0 | ^5.11.1 |
-| drift | ^2.22.1 | 2.22.1 (pinned for codegen compatibility) |
+| drift | ^2.22.1 | ^2.35.4 (pinned for codegen compatibility) |
 | drift_dev | ^2.22.1 | 2.22.1 (pinned with Freezed 2) |
 | shared_preferences | ^2.5.4 | ^2.5.6 |
 | media_kit | ^1.1.11 | ^1.2.6 |
@@ -25,3 +25,4 @@ Verzije: https://pub.dev/packages/dio · https://pub.dev/packages/drift · https
 ## Generatori i Dart 3.14
 
 U aplikacijskim Flutter buildovima isključeni su `riverpod_generator`, `build_runner`, `freezed`, `json_serializable` i `drift_dev`: stariji generatori zavise od SDK `_macros` koji Dart 3.14 nema, dok je generirana `database.g.dart` već uključena u zaključani upstream. Ovaj zahvat ne uklanja runtime `drift` ili `flutter_riverpod`. Prije iduće migracije sheme baze potrebno je koordinirano ažurirati generator i ponovno izraditi te testirati generirani kod.\n
+Drift **runtime** usklađen je s već generiranim `database.g.dart` koji koristi novije `sqlEquals` i `itemColumn` API-je. Stari `drift_dev` generator nije potreban za pokretanje niti za postojeći generirani model; prije promjene baze potrebno je uskladiti generator i migracije te ih posebno testirati.
