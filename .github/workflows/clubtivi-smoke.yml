@@ -39,9 +39,20 @@ jobs:
           assert "iptv-plus-v$version.apk" in updates
           assert "isIptvPlusPro" not in updates
           assert 'REQUEST_INSTALL_PACKAGES' not in (root/'android/app/src/main/AndroidManifest.xml').read_text()
-          for constraint in ('dio: ^5.11.1', 'drift: 2.22.1', 'drift_dev: 2.22.1', 'shared_preferences: ^2.5.6', 'media_kit: ^1.2.6', 'go_router: ^18.1.4'):
+          for constraint in ('dio: ^5.11.1', 'drift: 2.22.1', 'shared_preferences: ^2.5.6', 'media_kit: ^1.2.6', 'go_router: ^18.1.4'):
             assert constraint in pub, constraint
-          print('Unified identity, Pro feature gate, source updates, dependency floors OK')
+          assert 'drift_dev:' not in pub
+          assert 'riverpod_generator:' not in pub
+          providers=(root/'lib/features/providers/providers_screen.dart').read_text()
+          assert '_IptvPlusCatalogGroup' in providers
+          assert 'Regije i kategorije programa' in providers
+          assert 'iptvplus-country-hr' in providers
+          assert 'iptvplus-country-si' in providers
+          assert 'iptvplus-country-ba' in providers
+          assert 'iptvplus-country-rs' in providers
+          assert 'iptvplus-category-sports' in providers
+          assert 'iptvplus-category-animation' in providers
+          print('Unified identity, region and genre chooser, Pro gate, dependency and source security OK')
           PY
       - uses: subosito/flutter-action@v2
         with:
