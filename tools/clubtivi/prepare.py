@@ -259,7 +259,86 @@ def prepare(root: Path, icon_png: Path, icon_ico: Path, version: str, build_numb
       dio.close(force: true);
     }
   }"""
+    # Conditional M3U sync: preserve existing channels on HTTP 304 and use
+    # local ETag / Last-Modified values (never store provider credentials).
+    bounded_reader = bounded_reader.replace(
+        "    final maxBytes = provider.id.startsWith('iptvplus-') ? 8000000 : 30000000;",
+        """    final isPublic = provider.id.startsWith('iptvplus-');
+    final maxBytes = isPublic ? 8000000 : 30000000;
+    final cache = await SharedPreferences.getInstance();
+    final etagKey = 'iptvplus_etag_' + provider.id;
+    final modifiedKey = 'iptvplus_modified_' + provider.id;
+    final headers = <String, String>{};
+    if (isPublic) {
+      final tag = cache.getString(etagKey);
+      final modified = cache.getString(modifiedKey);
+      if (tag != null && tag.isNotEmpty) headers['If-None-Match'] = tag;
+      if (modified != null && modified.isNotEmpty) {
+        headers['If-Modified-Since'] = modified;
+      }
+    }""")
+    bounded_reader = bounded_reader.replace(
+        "      receiveTimeout: const Duration(seconds: 20),",
+        """      receiveTimeout: const Duration(seconds: 20),
+      followRedirects: !isPublic,
+      maxRedirects: isPublic ? 0 : 5,""")
+    bounded_reader = bounded_reader.replace(
+        "options: Options(responseType: ResponseType.stream),",
+        """options: Options(
+          responseType: ResponseType.stream,
+          headers: headers,
+          validateStatus: (status) => status == 200 || status == 304,
+        ),""")
+    bounded_reader = bounded_reader.replace(
+        "      final stream = response.data;",
+        """      if (response.statusCode == 304) {
+        throw const _IptvPlusNotModified();
+      }
+      final declaredSize = int.tryParse(
+          response.headers.value(Headers.contentLengthHeader) ?? '');
+      if (declaredSize != null && declaredSize > maxBytes) {
+        throw const FormatException('Playlist too large');
+      }
+      final stream = response.data;""")
+    bounded_reader = bounded_reader.replace(
+        "      return _m3uParser.parse(contents, providerId: provider.id).channels;",
+        """      final parsed = _m3uParser.parse(contents, providerId: provider.id);
+      if (isPublic) {
+        for (final pair in [
+          (etagKey, response.headers.value('etag')),
+          (modifiedKey, response.headers.value('last-modified')),
+        ]) {
+          final value = pair.$2;
+          if (value != null && value.length <= 256 &&
+              !value.contains('\r') && !value.contains('\n')) {
+            await cache.setString(pair.$1, value);
+          }
+        }
+      }
+      return parsed.channels;""")
     replace_required(provider_manager, original_reader, bounded_reader)
+    replace_required(provider_manager,
+                     "      channels = await _refreshM3u(provider);",
+                     "      try {\n"
+                     "        channels = await _refreshM3u(provider);\n"
+                     "      } on _IptvPlusNotModified {\n"
+                     "        return (await _db.getChannelsForProvider(providerId)).length;\n"
+                     "      }")
+    replace_required(provider_manager, "    await _db.deleteProvider(id);",
+                     "    await _db.deleteProvider(id);\n"
+                     "    if (id.startsWith('iptvplus-')) {\n"
+                     "      final cache = await SharedPreferences.getInstance();\n"
+                     "      await cache.remove('iptvplus_etag_' + id);\n"
+                     "      await cache.remove('iptvplus_modified_' + id);\n"
+                     "    }")
+    provider_manager.write_text(
+        provider_manager.read_text(encoding="utf-8") +
+        "\n// IPTV+ internal status marker: HTTP 304 retains saved channels.\n"
+        "class _IptvPlusNotModified implements Exception {\n"
+        "  const _IptvPlusNotModified();\n"
+        "}\n",
+        encoding="utf-8",
+    )
     mark_modified(provider_manager, "//")
 
     # IPTV+ is the primary Flutter application UI, keeping clubTivi as the engine.
