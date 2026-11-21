@@ -50,7 +50,7 @@ Section "IPTV+ ${EDITION}" Main
   WriteRegStr HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\IPTVPlus${EDITION}" "DisplayVersion" "${VERSION}"
 SectionEnd
 
-Section "Deinstaliraj"
+Section "Uninstall"
   Delete "$SMPROGRAMS\\IPTV+ ${EDITION}\\IPTV+ ${EDITION}.lnk"
   Delete "$SMPROGRAMS\\IPTV+ ${EDITION}\\Deinstaliraj.lnk"
   RMDir "$SMPROGRAMS\\IPTV+ ${EDITION}"
