@@ -29,3 +29,8 @@ Za kanale koji se prikazuju pri prvom otvaranju *bez korisničke aktivacije izvo
 ## Licenca i atribucija
 
 *Doubo Public Channel Directory* distribuciju odabira poveznica navodi pod CC BY 4.0. IPTV+ sadrži izričitu atribuciju projekta i njegovu poveznicu, ali ta licenca ne daje prava na video. `iptv-org` i `biskyt` ostaju neovisni izvori.
+
+
+## IPTV+ regionalni i tematski katalog
+
+Jedan ekran `Izvori i kategorije` prikazuje prioritetno Hrvatsku, Sloveniju, Bosnu i Hercegovinu i Srbiju, potom ostale države i tematske kategorije. `tools/clubtivi/catalog.py` sadrži 46 validiranih HTTPS pokazivača na javne direktorije projekta [iptv-org](https://github.com/iptv-org/iptv): sport, filmove, serije, dječje programe, animaciju, vijesti, dokumentarce, obrazovanje, znanost, glazbu, kulturu, kuhanje, putovanja, vremensku prognozu i drugo. Ponuđeni izvori nisu unaprijed uvezeni niti predstavljaju pravo emitiranja. Korisnik ih bira u aplikaciji; dostupni kanali i metapodaci potječu od vanjskog pružatelja. EPG, logotipi i autorska prava provjeravaju se odvojeno. Premium Arena Sport nije dio besplatne IPTV+ licence.\n

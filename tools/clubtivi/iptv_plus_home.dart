@@ -2,7 +2,6 @@
 // Uses clubTivi as engine for M3U, Xtream, EPG and playback.
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/iptvplus_edition.dart';
 
 class IptvPlusHomeScreen extends StatelessWidget {
   const IptvPlusHomeScreen({super.key});
@@ -19,7 +18,8 @@ class IptvPlusHomeScreen extends StatelessWidget {
       body: SafeArea(
         child: LayoutBuilder(builder: (context, constraints) {
           final wide = constraints.maxWidth >= 850;
-          final pad = wide ? 32.0 : 16.0;
+          final compact = constraints.maxWidth < 430;
+          final pad = wide ? 32.0 : compact ? 12.0 : 16.0;
           return CustomScrollView(
             slivers: [
               SliverPadding(
@@ -28,20 +28,31 @@ class IptvPlusHomeScreen extends StatelessWidget {
                   delegate: SliverChildListDelegate([
                     Row(children: [
                       Image.asset('assets/icon/iptv-plus-icon.png',
-                        width: 44, height: 44, semanticLabel: 'IPTV+ ikona'),
-                      const SizedBox(width: 12),
-                      const Text('IPTV+', style: TextStyle(fontSize: 28,
-                        fontWeight: FontWeight.w800, color: Colors.white)),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: accent.withValues(alpha: .6)),
-                          color: accent.withValues(alpha: .14),
+                        width: compact ? 36 : 44, height: compact ? 36 : 44,
+                        semanticLabel: 'IPTV+ ikona'),
+                      SizedBox(width: compact ? 8 : 12),
+                      const Expanded(
+                        child: Text('IPTV+', maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 26,
+                            fontWeight: FontWeight.w800, color: Colors.white)),
+                      ),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: compact ? 120 : 200),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: compact ? 8 : 13, vertical: 8),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: accent.withValues(alpha: .6)),
+                            color: accent.withValues(alpha: .14),
+                          ),
+                          child: Text('Sve uključeno', maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: Colors.white,
+                              fontSize: compact ? 11 : 13,
+                              fontWeight: FontWeight.w700)),
                         ),
-                        child: Text(iptvPlusTitle, style: const TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.w700)),
                       ),
                     ]),
                     const SizedBox(height: 23),
@@ -69,7 +80,7 @@ class IptvPlusHomeScreen extends StatelessWidget {
                           const SizedBox(height: 17),
                           Text('Svi tvoji kanali.\nJedno mjesto.',
                             style: TextStyle(color: Colors.white,
-                              fontSize: wide ? 43 : 32,
+                              fontSize: wide ? 43 : compact ? 28 : 32,
                               height: 1.12, fontWeight: FontWeight.w800)),
                           const SizedBox(height: 14),
                           const Text('Hrvatska · Slovenija · BiH · Srbija',
@@ -124,8 +135,10 @@ class IptvPlusHomeScreen extends StatelessWidget {
                       ];
                       return GridView.builder(
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: columns, crossAxisSpacing: 11,
-                          mainAxisSpacing: 11, childAspectRatio: wide ? 1.4 : 1.65),
+                          crossAxisCount: columns,
+                          crossAxisSpacing: compact ? 8 : 11,
+                          mainAxisSpacing: compact ? 8 : 11,
+                          mainAxisExtent: wide ? 124 : compact ? 112 : 130),
                         itemCount: cards.length, shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         itemBuilder: (context, index) => _CategoryTile(cards[index]),
@@ -203,7 +216,7 @@ class _CategoryTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       onTap: () => context.go(data.route),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.start,

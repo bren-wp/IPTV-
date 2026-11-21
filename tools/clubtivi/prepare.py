@@ -15,7 +15,7 @@ import subprocess
 import sys
 
 UPSTREAM = "ac690553a7aba33e8f91db653e1ac74e74a9e3b4"
-APP_IDS = {"free": "com.brendigo.iptvplus.free", "pro": "com.brendigo.iptvplus.pro"}
+APP_ID = "com.brendigo.iptvplus"
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_UPSTREAM = ROOT / "vendor" / "clubTivi"
 
@@ -50,16 +50,14 @@ def ensure_pristine(root: Path) -> None:
         raise RuntimeError("clubTivi worktree has local changes. Use a fresh checkout to avoid overwriting edits.")
 
 
-def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: str, build_number: int) -> None:
+def prepare(root: Path, icon_png: Path, icon_ico: Path, version: str, build_number: int) -> None:
     ensure_pristine(root)
-    if edition not in APP_IDS:
-        raise RuntimeError("Edition must be free or pro.")
     if not re.fullmatch(r"\d+\.\d+\.\d+", version) or build_number < 1:
         raise RuntimeError("Invalid semantic version/build number.")
     major, minor, patch = map(int, version.split("."))
     if minor >= 1000 or patch >= 1000 or major >= 1000:
         raise RuntimeError("Version components must be <1000 for monotonic Play versionCode")
-    # Every GitHub Release increments versionCode for both Free and Pro.
+    # Unified IPTV+ versionCode stays monotonic for updates.
     build_number = max(build_number, major * 1000000 + minor * 1000 + patch)
     if not icon_png.is_file() or icon_png.stat().st_size < 300:
         raise RuntimeError("Provide a genuine IPTV+ PNG launcher icon, at least 300 bytes.")
@@ -80,6 +78,31 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
         'assets/icon/clubtivi-icon.png', 'assets/icon/iptv-plus-icon.png'
     )
     pubspec.write_text(updated, encoding="utf-8")
+    # Current stable compatible release floor, verified on pub.dev Nov 2026.
+    # Full lockfile refresh requires Flutter analyze + native build gates.
+    for previous, current in (
+        ("  dio: ^5.7.0", "  dio: ^5.11.1"),
+        ("  drift: ^2.22.1", "  drift: ^2.35.4"),
+        ("  drift_dev: ^2.22.1", "  drift_dev: 2.22.1"),
+        ("  shared_preferences: ^2.5.4", "  shared_preferences: ^2.5.6"),
+        ("  media_kit: ^1.1.11", "  media_kit: ^1.2.6"),
+        ("  go_router: ^14.8.1", "  go_router: ^18.1.4"),
+    ):
+        replace_required(pubspec, previous, current)
+    # Upstream committed database.g.dart but retained generators that no
+    # longer resolve on Dart 3.14 (missing SDK _macros). Code generation is
+    # deliberately excluded from app/runtime CI until a coordinated API
+    # migration; committed generated schema remains intact.
+    for unused in (
+        "  riverpod_generator: ^2.6.3\n",
+        "  build_runner: ^2.4.14\n",
+        "  freezed: ^2.5.7\n",
+        "  json_serializable: ^6.9.4\n",
+        "  drift_dev: 2.22.1\n",
+    ):
+        replace_required(pubspec, unused, "")
+    # go_router >=18 resolves cupertino_ui and requires intl >=0.20.2.
+    replace_required(pubspec, "  intl: ^0.19.0", "  intl: ^0.20.2")
     mark_modified(pubspec, "#")
 
     app = root / "lib/app/app.dart"
@@ -87,53 +110,62 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
     replace_required(app, "title: 'clubTivi',", "title: iptvPlusTitle,")
     mark_modified(app, "//")
 
+    # One unified app with all previously Pro-gated functionality.
     edition_file = root / "lib/core/iptvplus_edition.dart"
     edition_file.write_text(
-        "// IPTV+ downstream addition by Brendigo.\n"
-        "const iptvPlusEdition = String.fromEnvironment('IPTV_EDITION', defaultValue: 'free');\n"
-        "const isIptvPlusPro = iptvPlusEdition == 'pro';\n"
-        "const iptvPlusTitle = isIptvPlusPro ? 'IPTV+ Pro' : 'IPTV+ Free';\n",
+        "// IPTV+ unified downstream branding; clubTivi copyright retained.\n"
+        "const iptvPlusTitle = 'IPTV+';\n",
         encoding="utf-8",
     )
 
-    # Activate the upstream's existing Free/Pro feature-gating instead of merely
-    # changing the displayed edition name. Internal identifiers stay original.
     main = root / "lib/main.dart"
     replace_required(main, "import 'app/app.dart';",
                      "import 'app/app.dart';\nimport 'core/feature_gate.dart';\nimport 'core/iptvplus_edition.dart';")
     replace_required(main, "  MediaKit.ensureInitialized();",
-                     "  FeatureGate.setTier(isIptvPlusPro ? AppTier.pro : AppTier.free);\n  MediaKit.ensureInitialized();")
+                     "  FeatureGate.setTier(AppTier.pro);\n  MediaKit.ensureInitialized();")
     mark_modified(main, "//")
 
-    # clubTivi already has a TV remote-friendly, one-click provider chooser.
-    # Add regional GitHub public directories to its existing FreeTvProvider list.
-    regional = [
-        ("iptvplus-doubo-hr", "Hrvatska - Doubo", "https://cdn.jsdelivr.net/gh/streamline-iptv/iptv-playlists@dist/countries/hr.m3u"),
-        ("iptvplus-doubo-ba", "BiH - Doubo", "https://cdn.jsdelivr.net/gh/streamline-iptv/iptv-playlists@dist/countries/ba.m3u"),
-        ("iptvplus-doubo-rs", "Srbija - Doubo", "https://cdn.jsdelivr.net/gh/streamline-iptv/iptv-playlists@dist/countries/rs.m3u"),
-        ("iptvplus-iptvorg-hr", "Hrvatska - iptv-org", "https://iptv-org.github.io/iptv/countries/hr.m3u"),
-        ("iptvplus-iptvorg-si", "Slovenija - iptv-org", "https://iptv-org.github.io/iptv/countries/si.m3u"),
-        ("iptvplus-iptvorg-ba", "BiH - iptv-org", "https://iptv-org.github.io/iptv/countries/ba.m3u"),
-        ("iptvplus-iptvorg-rs", "Srbija - iptv-org", "https://iptv-org.github.io/iptv/countries/rs.m3u"),
-        ("iptvplus-biskyt-live", "Javni TV - Legal Free IPTV", "https://biskyt.github.io/legalFreeIPTVplaylist/live.m3u"),
-        ("iptvplus-biskyt-movies", "Filmovi - Legal Free IPTV", "https://biskyt.github.io/legalFreeIPTVplaylist/movies.m3u"),
-        ("iptvplus-biskyt-series", "Serije - Legal Free IPTV", "https://biskyt.github.io/legalFreeIPTVplaylist/series.m3u"),
-    ]
-    presets = "\n".join(
-        f"    FreeTvProvider(\n      id: '{identifier}',\n"
-        f"      name: '{label}',\n      url: '{url}',\n"
-        "      description: 'Vanjska javna zbirka; prava pojedinog programa nisu zajamcena.',\n"
-        "      icon: Icons.public_rounded,\n    ),"
-        for identifier, label, url in regional
-    )
+    # IPTV+ opt-in directories grouped by primary country and channel genre.
+    # No streams are bundled, and availability/rights are never guaranteed.
+    from catalog import as_flutter_entries, as_flutter_groups
     providers = root / "lib/features/providers/providers_screen.dart"
-    replace_required(providers, "  static const all = [", "  static const all = [\n" + presets)
-    replace_required(providers, "title: const Text('IPTV Providers')", "title: const Text('IPTV+ · Izvori i liste')")
-    replace_required(providers, "const _SectionHeader(title: 'Free TV Providers')",
-                     "const _SectionHeader(title: 'Javne IPTV zbirke — prava sadržaja provjeriti')")
+    replace_required(providers, "  final String description;",
+                     "  final String description;\n  final String group;")
+    replace_required(providers, "    this.description = '',",
+                     "    this.description = '',\n    this.group = '🌐 Ostali javni izvori',")
+    replace_required(providers, "  static const all = [",
+                     "  static const groups = [\n" + as_flutter_groups() +
+                     "\n  ];\n  static const all = [\n" + as_flutter_entries())
+    before_sections = """              const _SectionHeader(title: 'Free TV Providers'),
+              const SizedBox(height: 4),
+              ...FreeTvProvider.all.map((fp) => _FreeTvProviderTile(
+                    freeProvider: fp,
+                    isAdded: providers.any((p) => p.id == fp.id),
+                  )),"""
+    after_sections = """              const _SectionHeader(title: 'Regije i kategorije programa'),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 12),
+                child: Text('Najprije Hrvatska, Slovenija, BiH i Srbija. '
+                    'Ostale države, sport, filmovi, crtani, vijesti i drugi '
+                    'žanrovi dostupni su na odabir. '
+                    'Prava pojedinog programa nisu zajamčena.',
+                    style: TextStyle(color: Colors.white70, fontSize: 12)),
+              ),
+              ...FreeTvProvider.groups.map((group) => _IptvPlusCatalogGroup(
+                    group: group,
+                    sources: FreeTvProvider.all.where(
+                      (source) => source.group == group).toList(),
+                    addedIds: providers.map((p) => p.id).toSet(),
+                  )),"""
+    replace_required(providers, before_sections, after_sections)
+    replace_required(providers, "title: const Text('IPTV Providers')",
+                     "title: const Text('IPTV+ · Izvori i kategorije')")
+    providers.write_text(providers.read_text(encoding="utf-8") + "\n" +
+        (ROOT / "tools/clubtivi/catalog_section.dart").read_text(encoding="utf-8"),
+        encoding="utf-8")
     mark_modified(providers, "//")
 
-    # Resyncing an existing provider must not count as adding a new Free provider.
+    # Resyncing an existing provider must not count as adding a new provider.
     provider_manager = root / "lib/features/providers/provider_manager.dart"
     replace_required(provider_manager,
                      "    await _checkProviderLimit();\n    await _db.upsertProvider(",
@@ -179,6 +211,136 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
                      "    _nowPlayingTimer?.cancel();\n    _iptvPlusRefreshTimer?.cancel();")
     mark_modified(channels, "//")
 
+    # Limit untrusted remote M3U payload size and bound network time.
+    replace_required(provider_manager,
+                     "import 'package:dio/dio.dart';",
+                     "import 'package:dio/dio.dart';\nimport 'dart:convert';\nimport 'dart:typed_data';")
+    original_reader = """  Future<List<Channel>> _refreshM3u(db.Provider provider) async {
+    final dio = Dio();
+    try {
+      final response = await dio.get<String>(provider.url!);
+      final result = _m3uParser.parse(response.data!, providerId: provider.id);
+      return result.channels;
+    } finally {
+      dio.close();
+    }
+  }"""
+    bounded_reader = """  Future<List<Channel>> _refreshM3u(db.Provider provider) async {
+    final remote = Uri.tryParse(provider.url ?? '');
+    if (remote == null ||
+        (remote.scheme != 'https' && remote.scheme != 'http')) {
+      throw const FormatException('Invalid playlist URL');
+    }
+    if (provider.id.startsWith('iptvplus-') &&
+        (remote.scheme != 'https' || remote.userInfo.isNotEmpty)) {
+      throw const FormatException('Public lists require HTTPS');
+    }
+    final maxBytes = provider.id.startsWith('iptvplus-') ? 8000000 : 30000000;
+    final dio = Dio(BaseOptions(
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 20),
+    ));
+    try {
+      final response = await dio.get<ResponseBody>(
+        provider.url!,
+        options: Options(responseType: ResponseType.stream),
+      );
+      final stream = response.data;
+      if (stream == null) throw const FormatException('Empty list');
+      final bytes = BytesBuilder(copy: false);
+      await for (final chunk in stream.stream) {
+        bytes.add(chunk);
+        if (bytes.length > maxBytes) throw const FormatException('Playlist too large');
+      }
+      final contents = utf8.decode(bytes.takeBytes());
+      if (!contents.trimLeft().startsWith('#EXTM3U')) {
+        throw const FormatException('Invalid M3U header');
+      }
+      return _m3uParser.parse(contents, providerId: provider.id).channels;
+    } finally {
+      dio.close(force: true);
+    }
+  }"""
+    # Conditional M3U sync: preserve existing channels on HTTP 304 and use
+    # local ETag / Last-Modified values (never store provider credentials).
+    bounded_reader = bounded_reader.replace(
+        "    final maxBytes = provider.id.startsWith('iptvplus-') ? 8000000 : 30000000;",
+        """    final isPublic = provider.id.startsWith('iptvplus-');
+    final maxBytes = isPublic ? 8000000 : 30000000;
+    final cache = await SharedPreferences.getInstance();
+    final etagKey = 'iptvplus_etag_' + provider.id;
+    final modifiedKey = 'iptvplus_modified_' + provider.id;
+    final headers = <String, String>{};
+    if (isPublic) {
+      final tag = cache.getString(etagKey);
+      final modified = cache.getString(modifiedKey);
+      if (tag != null && tag.isNotEmpty) headers['If-None-Match'] = tag;
+      if (modified != null && modified.isNotEmpty) {
+        headers['If-Modified-Since'] = modified;
+      }
+    }""")
+    bounded_reader = bounded_reader.replace(
+        "      receiveTimeout: const Duration(seconds: 20),",
+        """      receiveTimeout: const Duration(seconds: 20),
+      followRedirects: !isPublic,
+      maxRedirects: isPublic ? 0 : 5,""")
+    bounded_reader = bounded_reader.replace(
+        "options: Options(responseType: ResponseType.stream),",
+        """options: Options(
+          responseType: ResponseType.stream,
+          headers: headers,
+          validateStatus: (status) => status == 200 || status == 304,
+        ),""")
+    bounded_reader = bounded_reader.replace(
+        "      final stream = response.data;",
+        """      if (response.statusCode == 304) {
+        throw const _IptvPlusNotModified();
+      }
+      final declaredSize = int.tryParse(
+          response.headers.value(Headers.contentLengthHeader) ?? '');
+      if (declaredSize != null && declaredSize > maxBytes) {
+        throw const FormatException('Playlist too large');
+      }
+      final stream = response.data;""")
+    bounded_reader = bounded_reader.replace(
+        "      return _m3uParser.parse(contents, providerId: provider.id).channels;",
+        """      final parsed = _m3uParser.parse(contents, providerId: provider.id);
+      if (isPublic) {
+        for (final pair in [
+          (etagKey, response.headers.value('etag')),
+          (modifiedKey, response.headers.value('last-modified')),
+        ]) {
+          final value = pair.$2;
+          if (value != null && value.length <= 256 &&
+              !value.codeUnits.contains(13) && !value.codeUnits.contains(10)) {
+            await cache.setString(pair.$1, value);
+          }
+        }
+      }
+      return parsed.channels;""")
+    replace_required(provider_manager, original_reader, bounded_reader)
+    replace_required(provider_manager,
+                     "      channels = await _refreshM3u(provider);",
+                     "      try {\n"
+                     "        channels = await _refreshM3u(provider);\n"
+                     "      } on _IptvPlusNotModified {\n"
+                     "        return (await _db.getChannelsForProvider(providerId)).length;\n"
+                     "      }")
+    replace_required(provider_manager, "    await _db.deleteProvider(id);",
+                     "    await _db.deleteProvider(id);\n"
+                     "    if (id.startsWith('iptvplus-')) {\n"
+                     "      final cache = await SharedPreferences.getInstance();\n"
+                     "      await cache.remove('iptvplus_etag_' + id);\n"
+                     "      await cache.remove('iptvplus_modified_' + id);\n"
+                     "    }")
+    provider_manager.write_text(
+        provider_manager.read_text(encoding="utf-8") +
+        "\n// IPTV+ internal status marker: HTTP 304 retains saved channels.\n"
+        "class _IptvPlusNotModified implements Exception {\n"
+        "  const _IptvPlusNotModified();\n"
+        "}\n",
+        encoding="utf-8",
+    )
     mark_modified(provider_manager, "//")
 
     # IPTV+ is the primary Flutter application UI, keeping clubTivi as the engine.
@@ -280,14 +442,14 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
                      "final filePath = '${dir.path}/clubtivi-update.apk';",
                      "final filePath = '${dir.path}/iptv-plus-update.apk';")
     # The upstream updater selected the first GitHub APK, potentially
-    # offering a Free package to Pro users, and required Play-restricted
+    # offering the wrong package, and required Play-restricted
     # REQUEST_INSTALL_PACKAGES. Open the official verified release page instead.
     replace_required(update_service,
                      "if (name.endsWith('.apk')) {",
-                     "if (name.endsWith('-${isIptvPlusPro ? 'pro' : 'free'}.apk')) {")
+                     "if (name == 'iptv-plus-v$version.apk') {")
     replace_required(update_service,
                      "import 'package:dio/dio.dart';",
-                     "import 'package:dio/dio.dart';\nimport '../../core/iptvplus_edition.dart';")
+                     "import 'package:dio/dio.dart';")
     updater_data = update_service.read_text(encoding="utf-8")
     for import_line in ("import 'dart:io';\n",
                         "import 'package:flutter/services.dart';\n",
@@ -301,6 +463,35 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
     updater_data = updater_data.replace(
         "  static const _channel = MethodChannel('io.github.clubanderson.clubtivi/installer');\n",
         "")
+    # GitHub /releases/latest excludes prereleases; IPTV+ publishes
+    # verified development prereleases. Never offer an unsigned APK as an
+    # in-app installation. Always open the source release page externally.
+    original_endpoint = "'https://api.github.com/repos/$_repo/releases/latest'"
+    new_endpoint = "'https://api.github.com/repos/$_repo/releases?per_page=10'"
+    if original_endpoint not in updater_data:
+        raise RuntimeError("Release endpoint upstream changed")
+    updater_data = updater_data.replace(original_endpoint, new_endpoint)
+    original_map = "final data = response.data as Map<String, dynamic>;"
+    replacement_map = (
+        "final responseList = response.data;\n"
+        "      if (responseList is! List) return null;\n"
+        "      final releases = responseList.whereType<Map<String, dynamic>>()\n"
+        "          .where((entry) => entry['draft'] != true &&\n"
+        "              (entry['tag_name'] as String? ?? '').startsWith('v'))\n"
+        "          .toList();\n"
+        "      if (releases.isEmpty) return null;\n"
+        "      final data = releases.first;"
+    )
+    if original_map not in updater_data:
+        raise RuntimeError("Release decoding upstream changed")
+    updater_data = updater_data.replace(original_map, replacement_map)
+    asset_start = updater_data.find("      String? apkUrl;")
+    asset_end = updater_data.find("\n      return ReleaseInfo(", asset_start)
+    if asset_start < 0 or asset_end < 0:
+        raise RuntimeError("Update assets layout changed")
+    updater_data = updater_data[:asset_start] + updater_data[asset_end:]
+    updater_data = updater_data.replace("apkDownloadUrl: apkUrl,",
+                                        "apkDownloadUrl: null,")
     update_service.write_text(updater_data, encoding="utf-8")
 
     screen = root / "lib/features/channels/channels_screen.dart"
@@ -352,6 +543,63 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
         screen.write_text(data, encoding="utf-8")
         mark_modified(screen, "//")
 
+    # EPG sources can contain bearer-like URL tokens. Do not log their URLs,
+    # auto-configure third-party scraped feeds, or download unbounded XMLTV.
+    epg = root / "lib/data/services/epg_refresh_service.dart"
+    replace_required(epg, "import 'dart:convert';",
+                     "import 'dart:convert';\nimport 'dart:typed_data';")
+    replace_required(epg,
+                     "debugPrint('[EPG] Refreshing source: ${source.name} (${source.url})');",
+                     "debugPrint('[EPG] Refreshing source: ${source.name}');")
+    replace_required(epg,
+                     "'User-Agent': 'clubTivi/1.0 IPTV Player (compatible; XMLTV fetcher)',",
+                     "'User-Agent': 'IPTVPlus/0.2 (compatible; XMLTV fetcher)',")
+    replace_required(epg,
+                     "      headers: {\n"
+                     "        'User-Agent': 'IPTVPlus/0.2 (compatible; XMLTV fetcher)',\n"
+                     "      },",
+                     "      headers: {\n"
+                     "        'User-Agent': 'IPTVPlus/0.2 (compatible; XMLTV fetcher)',\n"
+                     "      },\n"
+                     "      connectTimeout: const Duration(seconds: 15),\n"
+                     "      receiveTimeout: const Duration(seconds: 30),")
+    replace_required(epg,
+                     "      final response = await dio.get<List<int>>(\n"
+                     "        source.url,\n"
+                     "        options: Options(responseType: ResponseType.bytes),\n"
+                     "      );\n\n"
+                     "      final bytes = response.data!;",
+                     "      final remote = Uri.tryParse(source.url);\n"
+                     "      if (remote == null ||\n"
+                     "          (remote.scheme != 'https' && remote.scheme != 'http')) {\n"
+                     "        throw const FormatException('Invalid XMLTV source URL');\n"
+                     "      }\n"
+                     "      final response = await dio.get<ResponseBody>(\n"
+                     "        source.url,\n"
+                     "        options: Options(responseType: ResponseType.stream),\n"
+                     "      );\n"
+                     "      final body = response.data;\n"
+                     "      if (body == null) throw const FormatException('Empty XMLTV source');\n"
+                     "      final chunks = BytesBuilder(copy: false);\n"
+                     "      await for (final chunk in body.stream) {\n"
+                     "        chunks.add(chunk);\n"
+                     "        if (chunks.length > 40000000) {\n"
+                     "          throw const FormatException('XMLTV feed exceeds 40 MB limit');\n"
+                     "        }\n"
+                     "      }\n"
+                     "      final bytes = chunks.takeBytes();")
+    epg_data = epg.read_text(encoding="utf-8")
+    defaults_start = epg_data.find("    final defaults = [")
+    defaults_end = epg_data.find("\n\n    for (final d in defaults)", defaults_start)
+    if defaults_start < 0 or defaults_end < 0:
+        raise RuntimeError("EPG defaults upstream changed")
+    epg_data = (epg_data[:defaults_start] +
+        "    // No unauthorized EPG feeds or embedded access tokens by default.\n"
+        "    final defaults = <({String name, String url, bool enabled})>[];" +
+        epg_data[defaults_end:])
+    epg.write_text(epg_data, encoding="utf-8")
+    mark_modified(epg, "//")
+
     theme = root / "lib/app/theme.dart"
     for old, new in [
         ("Color(0xFF6C5CE7)", "Color(0xFF7C5CFF)"),
@@ -362,7 +610,7 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
     mark_modified(theme, "//")
 
     manifest = root / "android/app/src/main/AndroidManifest.xml"
-    replace_required(manifest, 'android:label="clubTivi"', f'android:label="IPTV+ {edition.title()}"')
+    replace_required(manifest, 'android:label="clubTivi"', 'android:label="IPTV+"')
     # The original in-app APK installation permission isn't required for Google Play distribution.
     manifest.write_text(
         manifest.read_text(encoding="utf-8").replace(
@@ -432,15 +680,32 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
         1,
     )
     gradle.write_text(gradle_source, encoding="utf-8")
-    replace_required(gradle, 'applicationId = "io.github.clubanderson.clubtivi"', f'applicationId = "{APP_IDS[edition]}"')
+    replace_required(gradle, 'applicationId = "io.github.clubanderson.clubtivi"', f'applicationId = "{APP_ID}"')
     replace_required(gradle, "minSdk = flutter.minSdkVersion", "minSdk = 24")
     # Signing with a debug key is not suitable for release. Never commit a private keystore.
     replace_required(gradle, 'signingConfig = signingConfigs.getByName("debug")',
-                     '// IPTV+ downstream: debug signing removed; signed release requires external CI credentials.')
+                     '// IPTV+ downstream: debug signing removed; build UNSIGNED developer artifacts only.')
     mark_modified(gradle, "//")
 
     window_main = root / "windows/runner/main.cpp"
-    replace_required(window_main, 'window.Create(L"clubTivi",', 'window.Create(L"IPTV+ ' + edition.title() + '",')
+    replace_required(window_main, 'window.Create(L"clubTivi",', 'window.Create(L"IPTV+",')
+    replace_required(window_main,
+                     '#include <windows.h>',
+                     '#include <windows.h>\n#include <algorithm>')
+    replace_required(window_main,
+                     '  Win32Window::Point origin(10, 10);\n'
+                     '  Win32Window::Size size(1280, 720);',
+                     '  RECT workArea{};\n'
+                     '  const bool hasArea = ::SystemParametersInfoW(SPI_GETWORKAREA, 0, &workArea, 0) != 0;\n'
+                     '  const int left = hasArea ? workArea.left : 0;\n'
+                     '  const int top = hasArea ? workArea.top : 0;\n'
+                     '  const int screenWidth = hasArea ? (workArea.right - workArea.left) : ::GetSystemMetrics(SM_CXSCREEN);\n'
+                     '  const int screenHeight = hasArea ? (workArea.bottom - workArea.top) : ::GetSystemMetrics(SM_CYSCREEN);\n'
+                     '  const int width = std::min(1180, std::max(240, screenWidth - 64));\n'
+                     '  const int height = std::min(760, std::max(180, screenHeight - 80));\n'
+                     '  Win32Window::Point origin(left + std::max(0, (screenWidth - width) / 2),\n'
+                     '                            top + std::max(0, (screenHeight - height) / 2));\n'
+                     '  Win32Window::Size size(width, height);')
     mark_modified(window_main, "//")
 
     cmake = root / "windows/CMakeLists.txt"
@@ -449,8 +714,8 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
 
     resources = root / "windows/runner/Runner.rc"
     for old, new in [
-        ('"FileDescription", "clubTivi"', '"FileDescription", "IPTV+ ' + edition.title() + '"'),
-        ('"ProductName", "clubTivi"', '"ProductName", "IPTV+ ' + edition.title() + '"'),
+        ('"FileDescription", "clubTivi"', '"FileDescription", "IPTV+"'),
+        ('"ProductName", "clubTivi"', '"ProductName", "IPTV+"'),
         ('"InternalName", "clubtivi"', '"InternalName", "iptvplus"'),
         ('"OriginalFilename", "clubtivi.exe"', '"OriginalFilename", "iptvplus.exe"'),
     ]:
@@ -460,26 +725,24 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
                      '"Copyright (C) 2026 io.github.clubanderson. All rights reserved."',
                      '"Original clubTivi contributors; downstream IPTV+ modifications (C) 2026 Brendigo."')
     mark_modified(resources, "//")
-    print(f"Prepared IPTV+ {edition.title()} based on clubTivi {UPSTREAM}.")
+    print(f"Prepared unified IPTV+ based on clubTivi {UPSTREAM}.")
     print("Run: flutter pub get")
-    print(f"Run: flutter build apk --release --dart-define=IPTV_EDITION={edition}")
-    print(f"Run: flutter build appbundle --release --dart-define=IPTV_EDITION={edition}")
-    print("Free/Pro feature gate and ten optional regional/public presets applied.")
-    print("WARNING: Android release signing and production checks remain required.")
+    print("Run: flutter build apk --release")
+    print("Run: flutter build appbundle --release")
+    print("All advanced Pro-tier features enabled; ten optional regional sources included.")
+    print("WARNING: APK/AAB are UNSIGNED and not installable nor accepted by Google Play.")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--edition", required=True, choices=APP_IDS.keys())
     parser.add_argument("--checkout", type=Path, default=DEFAULT_UPSTREAM)
     parser.add_argument("--icon-png", type=Path, required=True)
     parser.add_argument("--icon-ico", type=Path, required=True)
-    parser.add_argument("--version", default="0.1.0")
+    parser.add_argument("--version", default="0.2.0")
     parser.add_argument("--build-number", type=int, default=1)
     args = parser.parse_args()
     try:
-        prepare(args.checkout.resolve(), args.edition,
-                args.icon_png.resolve(), args.icon_ico.resolve(),
+        prepare(args.checkout.resolve(), args.icon_png.resolve(), args.icon_ico.resolve(),
                 args.version, args.build_number)
     except (RuntimeError, OSError, subprocess.CalledProcessError) as error:
         parser.exit(1, f"IPTV+ clubTivi preparation failed: {error}\n")

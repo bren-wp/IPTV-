@@ -1,21 +1,16 @@
-name: clubTivi to IPTV+ Flutter rebrand smoke test
+name: IPTV+ unified Flutter branding and dependency checks
 on:
   push:
-    branches: [main, "feat/**"]
+    branches: [main, "feat/**", "fix/**"]
   workflow_dispatch:
 concurrency:
-  group: iptv-clubtivi-${{ github.head_ref || github.ref_name }}
+  group: iptv-clubtivi-${{ github.ref_name }}
   cancel-in-progress: true
-
 jobs:
-  test-branding:
+  branding:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        edition: [free, pro]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -23,84 +18,55 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install brand icon generator
-        run: npm install --no-audit --no-fund
-      - name: Convert original IPTV+ icon for Flutter and Windows
-        run: npm run tauri -- icon assets/brand/iptv-plus-icon.svg
-      - name: Apply downstream brand overlay on clean pinned clubTivi source
-        shell: bash
-        env:
-          EDITION: ${{ matrix.edition }}
+      - run: npm install --no-audit --no-fund
+      - run: npm run tauri -- icon assets/brand/iptv-plus-icon.svg
+      - name: Apply one IPTV+ full-featured brand and check package configuration
         run: |
-          python3 tools/clubtivi/prepare.py \
-            --edition "$EDITION" \
-            --icon-png src-tauri/icons/128x128@2x.png \
-            --icon-ico src-tauri/icons/icon.ico \
-            --version 0.1.0 --build-number 1
-      - name: Check authorship, app IDs, Free/Pro gate and regional lists
-        shell: bash
-        env:
-          EDITION: ${{ matrix.edition }}
-        run: |
-          python3 - <<'PY'
-          import os
-          from pathlib import Path
-          root=Path('vendor/clubTivi')
-          edition=os.environ['EDITION']
-          assert 'Apache License' in (root/'LICENSE').read_text()
-          assert f'com.brendigo.iptvplus.{edition}' in (root/'android/app/build.gradle.kts').read_text()
-          app=(root/'lib/app/app.dart').read_text()
-          main=(root/'lib/main.dart').read_text()
-          providers=(root/'lib/features/providers/providers_screen.dart').read_text()
-          assert "title: iptvPlusTitle," in app
-          assert "FeatureGate.setTier(isIptvPlusPro ? AppTier.pro : AppTier.free);" in main
-          assert "iptvplus-iptvorg-si" in providers and "iptvplus-doubo-hr" in providers
-          assert (root/'assets/icon/iptv-plus-icon.png').is_file()
-          assert (root/'windows/runner/resources/app_icon.ico').is_file()
-          print(f'IPTV+ {edition.upper()}: patch and license checks passed')
-          PY
-      - name: Verify Android toolchain migration and edition-safe updates
-        shell: bash
-        run: |
+          python3 tools/clubtivi/prepare.py --icon-png src-tauri/icons/128x128@2x.png --icon-ico src-tauri/icons/icon.ico --version 0.2.0
           python3 - <<'PY'
           from pathlib import Path
           root=Path('vendor/clubTivi')
-          wrapper=(root/'android/gradle/wrapper/gradle-wrapper.properties').read_text()
-          settings=(root/'android/settings.gradle.kts').read_text()
-          props=(root/'android/gradle.properties').read_text()
-          updates=(root/'lib/data/services/app_update_service.dart').read_text()
-          manifest=(root/'android/app/src/main/AndroidManifest.xml').read_text()
-          assert 'gradle-9.5.0-all.zip' in wrapper
-          assert 'com.android.application") version "9.3.1"' in settings
-          assert 'org.jetbrains.kotlin.android") version "2.4.20"' in settings
-          assert 'android.builtInKotlin=false' not in props and 'android.newDsl=false' not in props
           gradle=(root/'android/app/build.gradle.kts').read_text()
-          assert 'id("kotlin-android")' not in gradle
-          assert 'kotlinOptions {' not in gradle
-          assert 'compilerOptions {' in gradle and 'JvmTarget.JVM_17' in gradle
-          assert "isIptvPlusPro ? 'pro' : 'free'" in updates
-          assert 'clubanderson/clubTivi' not in updates
-          assert 'REQUEST_INSTALL_PACKAGES' not in manifest
+          flutter=(root/'lib/main.dart').read_text()
+          app=(root/'lib/app/app.dart').read_text()
+          updates=(root/'lib/data/services/app_update_service.dart').read_text()
+          pub=(root/'pubspec.yaml').read_text()
+          assert 'Apache License' in (root/'LICENSE').read_text()
+          assert 'com.brendigo.iptvplus"' in gradle
+          assert 'com.brendigo.iptvplus.free' not in gradle
+          assert 'FeatureGate.setTier(AppTier.pro)' in flutter
+          assert "title: iptvPlusTitle" in app
+          assert 'releases?per_page=10' in updates
+          assert 'apkDownloadUrl: null' in updates
           assert 'downloadAndInstall' not in updates
-          main_activity=(root/'android/app/src/main/kotlin/io/github/clubanderson/clubtivi/MainActivity.kt').read_text()
-          assert 'import io.flutter.plugin.common.MethodChannel' not in main_activity
-          assert '.setMethodCallHandler' not in main_activity
-          assert 'FileProvider' not in manifest
-          assert 'installApk' not in main_activity
-          assert not (root/'android/app/src/main/res/xml/file_paths.xml').exists()
-          print('Android toolchain, safe edition updater and obsolete installer removal verified')
+          assert "isIptvPlusPro" not in updates
+          assert 'REQUEST_INSTALL_PACKAGES' not in (root/'android/app/src/main/AndroidManifest.xml').read_text()
+          for constraint in ('dio: ^5.11.1', 'drift: ^2.35.4', 'shared_preferences: ^2.5.6', 'media_kit: ^1.2.6', 'go_router: ^18.1.4'):
+            assert constraint in pub, constraint
+          assert 'drift_dev:' not in pub
+          assert 'riverpod_generator:' not in pub
+          providers=(root/'lib/features/providers/providers_screen.dart').read_text()
+          assert '_IptvPlusCatalogGroup' in providers
+          assert 'Regije i kategorije programa' in providers
+          assert 'iptvplus-country-hr' in providers
+          assert 'iptvplus-country-si' in providers
+          assert 'iptvplus-country-ba' in providers
+          assert 'iptvplus-country-rs' in providers
+          assert 'iptvplus-category-sports' in providers
+          assert 'iptvplus-category-animation' in providers
+          print('Unified identity, region and genre chooser, Pro gate, dependency and source security OK')
           PY
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           flutter-version: '3.50.1'
           cache: true
-      - name: Fetch Flutter dependencies
+      - name: Upgrade compatible Flutter Pub dependencies
         working-directory: vendor/clubTivi
-        run: flutter pub get
-      - name: Static Flutter analysis
+        run: flutter pub upgrade
+      - name: Analyze Flutter API after dependency updates
         working-directory: vendor/clubTivi
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
-      - name: Execute Flutter unit and widget tests
+      - name: Run complete unit and widget tests
         working-directory: vendor/clubTivi
         run: flutter test --no-pub

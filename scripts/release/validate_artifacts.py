@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail closed when any one of the required eight release files is missing."""
+"""Fail closed when any one of the required four release files is missing."""
 from pathlib import Path
 import argparse
 import hashlib
@@ -10,10 +10,18 @@ parser.add_argument("--directory", default="release")
 parser.add_argument("--version", required=True)
 args = parser.parse_args()
 folder = Path(args.directory)
-expected = []
-for edition in ("Free", "Pro"):
-    expected += [f"IPTV-Plus-v{args.version}-{edition}.{ext}" for ext in ("apk", "aab")]
-    expected += [f"IPTV-Plus-v{args.version}-{edition}-{kind}.exe" for kind in ("Portable", "Setup")]
+expected = [
+    f"IPTV-Plus-v{args.version}-Unsigned.apk",
+    f"IPTV-Plus-v{args.version}-Unsigned.aab",
+    f"IPTV-Plus-v{args.version}-Portable.exe",
+    f"IPTV-Plus-v{args.version}-Setup.exe",
+]
+legacy = [p for p in folder.iterdir() if
+          p.name.endswith(("-Free.apk", "-Pro.apk", "-Free.aab", "-Pro.aab",
+                           "-Free-Portable.exe", "-Pro-Portable.exe",
+                           "-Free-Setup.exe", "-Pro-Setup.exe"))]
+if legacy:
+    raise SystemExit("Old Free/Pro artifacts are forbidden in the unified release")
 for name in expected:
     path = folder / name
     if not path.is_file() or path.stat().st_size < 100_000:
@@ -30,6 +38,6 @@ for name in expected:
         with path.open("rb") as binary:
             if binary.read(2) != b"MZ":
                 raise SystemExit(f"Not a PE Windows executable: {name}")
-print("Eight required packages present, nontrivial, and structurally recognizable.")
+print("Four required packages present, nontrivial, and structurally recognizable.")
 checksums = [hashlib.sha256((folder / name).read_bytes()).hexdigest() + "  " + name for name in sorted(expected)]
 (folder / "SHA256SUMS.txt").write_text("\n".join(checksums) + "\n", encoding="utf-8")

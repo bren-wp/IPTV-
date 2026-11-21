@@ -1,54 +1,31 @@
-name: IPTV+ verified release — Free and Pro, Android and Windows
+name: IPTV+ verified unified release (APK AAB Portable Setup)
 on:
   push:
     branches: [main]
   workflow_dispatch:
     inputs:
       version:
-        description: Expected app version (must match package.json)
+        description: Expected version matching package.json
         required: false
         type: string
 concurrency:
-  group: iptv-plus-release
+  group: iptv-plus-unified-release
   cancel-in-progress: false
 jobs:
-  signing-readiness:
-    name: Android signing prerequisites (no key material exposed)
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      ready: ${{ steps.check.outputs.ready }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check Free/Pro signing secrets before native builds
-        id: check
-        env:
-          IPTV_FREE_KEYSTORE_BASE64: ${{ secrets.IPTV_FREE_KEYSTORE_BASE64 }}
-          IPTV_FREE_STORE_PASSWORD: ${{ secrets.IPTV_FREE_STORE_PASSWORD }}
-          IPTV_FREE_KEY_PASSWORD: ${{ secrets.IPTV_FREE_KEY_PASSWORD }}
-          IPTV_FREE_KEY_ALIAS: ${{ secrets.IPTV_FREE_KEY_ALIAS }}
-          IPTV_PRO_KEYSTORE_BASE64: ${{ secrets.IPTV_PRO_KEYSTORE_BASE64 }}
-          IPTV_PRO_STORE_PASSWORD: ${{ secrets.IPTV_PRO_STORE_PASSWORD }}
-          IPTV_PRO_KEY_PASSWORD: ${{ secrets.IPTV_PRO_KEY_PASSWORD }}
-          IPTV_PRO_KEY_ALIAS: ${{ secrets.IPTV_PRO_KEY_ALIAS }}
-        run: python3 scripts/release/check_signing_env.py
   preflight:
-    needs: signing-readiness
-    if: needs.signing-readiness.outputs.ready == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
     outputs:
-      version: ${{ steps.check.outputs.version }}
-      tag: ${{ steps.check.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: New unique version check
-        id: check
+      - name: Verify new app version and absence of existing GitHub Release
+        id: version
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ inputs.version }}
@@ -57,18 +34,14 @@ jobs:
       - run: npm run build
       - run: npm test
       - run: python3 scripts/release/validate_designs.py
+      - run: python3 -m unittest discover scripts/release -p 'test_*.py'
 
   windows:
     needs: preflight
     runs-on: windows-latest
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        edition: [Free, Pro]
     env:
-      EDITION: ${{ matrix.edition }}
       RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
     steps:
       - uses: actions/checkout@v4
@@ -83,44 +56,43 @@ jobs:
           flutter-version: '3.50.1'
           cache: true
       - run: npm install --no-audit --no-fund
-      - name: Apply IPTV+ brand to clubTivi Flutter engine
+      - name: Brand the complete Flutter engine
         shell: pwsh
         run: |
           npm run tauri -- icon assets/brand/iptv-plus-icon.svg
           if ($LASTEXITCODE -ne 0) { throw "IPTV+ icon generation failed" }
-          python tools/clubtivi/prepare.py --edition $(($env:EDITION).ToLowerInvariant()) --icon-png src-tauri/icons/128x128@2x.png --icon-ico src-tauri/icons/icon.ico --version $env:RELEASE_VERSION --build-number 1
-          if ($LASTEXITCODE -ne 0) { throw "Flutter brand overlay failed" }
-      - name: Test and compile real Flutter Windows engine
-        shell: pwsh
+          python tools/clubtivi/prepare.py --icon-png src-tauri/icons/128x128@2x.png --icon-ico src-tauri/icons/icon.ico --version $env:RELEASE_VERSION
+          if ($LASTEXITCODE -ne 0) { throw "IPTV+ branding failed" }
+      - name: Upgrade to latest compatible Pub dependencies and run tests
         working-directory: vendor/clubTivi
+        shell: pwsh
         run: |
-          flutter pub get
-          if ($LASTEXITCODE -ne 0) { throw "Flutter packages unavailable" }
+          flutter pub upgrade
+          if ($LASTEXITCODE -ne 0) { throw "Dependency resolution failed" }
           flutter test
           if ($LASTEXITCODE -ne 0) { throw "Flutter tests failed" }
-          flutter build windows --release --dart-define=IPTV_EDITION=$(($env:EDITION).ToLowerInvariant())
-          if ($LASTEXITCODE -ne 0) { throw "Flutter Windows build failed" }
-      - name: Build real Portable and Setup binaries
+          flutter build windows --release
+          if ($LASTEXITCODE -ne 0) { throw "Native Windows build failed" }
+      - name: Package Windows standalone Portable and NSIS Setup
         shell: pwsh
         run: |
           $payload = Join-Path $PWD 'vendor/clubTivi/build/windows/x64/runner/Release'
-          if (!(Test-Path "$payload/iptvplus.exe") -or !(Test-Path "$payload/data")) { throw "Missing full Flutter Windows runner" }
+          if (!(Test-Path "$payload/iptvplus.exe") -or !(Test-Path "$payload/data")) { throw "Flutter runner incomplete" }
           New-Item -ItemType Directory -Force release | Out-Null
-          Compress-Archive -Path "$payload/*" -DestinationPath "tools/portable/flutter-bundle.zip" -CompressionLevel Optimal -Force
-          dotnet publish tools/portable/IPTVPlusPortable.csproj -c Release -r win-x64 --self-contained true -o "portable-output" -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true
-          if ($LASTEXITCODE -ne 0) { throw "One-file Portable build failed" }
-          if (!(Test-Path "portable-output/IPTVPlusPortable.exe")) { throw "Portable exe absent" }
-          Copy-Item "portable-output/IPTVPlusPortable.exe" "release/IPTV-Plus-v$($env:RELEASE_VERSION)-$($env:EDITION)-Portable.exe"
+          Compress-Archive -Path "$payload/*" -DestinationPath tools/portable/flutter-bundle.zip -CompressionLevel Optimal -Force
+          dotnet publish tools/portable/IPTVPlusPortable.csproj -c Release -r win-x64 --self-contained true -o portable-output -p:PublishSingleFile=true
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path portable-output/IPTVPlusPortable.exe)) { throw "Portable packaging failed" }
+          Copy-Item portable-output/IPTVPlusPortable.exe "release/IPTV-Plus-v$($env:RELEASE_VERSION)-Portable.exe"
           choco install nsis -y --no-progress
-          if ($LASTEXITCODE -ne 0) { throw "NSIS install failed" }
-          $compiler = "C:\Program Files (x86)\NSIS\makensis.exe"
+          if ($LASTEXITCODE -ne 0) { throw "NSIS missing" }
+          $compiler = 'C:\Program Files (x86)\NSIS\makensis.exe'
           if (!(Test-Path $compiler)) { throw "NSIS compiler absent" }
-          $output = Join-Path $PWD "release/IPTV-Plus-v$($env:RELEASE_VERSION)-$($env:EDITION)-Setup.exe"
-          & $compiler "/DVERSION=$($env:RELEASE_VERSION)" "/DEDITION=$($env:EDITION)" "/DPAYLOAD=$payload" "/DOUTPUT=$output" "tools/windows/iptvplus.nsi"
-          if ($LASTEXITCODE -ne 0 -or !(Test-Path $output)) { throw "NSIS setup build failed" }
+          $output = Join-Path $PWD "release/IPTV-Plus-v$($env:RELEASE_VERSION)-Setup.exe"
+          & $compiler "/DVERSION=$($env:RELEASE_VERSION)" "/DPAYLOAD=$payload" "/DOUTPUT=$output" tools/windows/iptvplus.nsi
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $output)) { throw "Setup creation failed" }
       - uses: actions/upload-artifact@v4
         with:
-          name: iptv-windows-${{ matrix.edition }}
+          name: iptv-windows
           path: release/*.exe
           if-no-files-found: error
 
@@ -129,17 +101,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        edition: [Free, Pro]
     env:
-      EDITION: ${{ matrix.edition }}
       RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
-      IPTV_ANDROID_KEYSTORE_BASE64: ${{ matrix.edition == 'Free' && secrets.IPTV_FREE_KEYSTORE_BASE64 || secrets.IPTV_PRO_KEYSTORE_BASE64 }}
-      IPTV_ANDROID_STORE_PASSWORD: ${{ matrix.edition == 'Free' && secrets.IPTV_FREE_STORE_PASSWORD || secrets.IPTV_PRO_STORE_PASSWORD }}
-      IPTV_ANDROID_KEY_PASSWORD: ${{ matrix.edition == 'Free' && secrets.IPTV_FREE_KEY_PASSWORD || secrets.IPTV_PRO_KEY_PASSWORD }}
-      IPTV_ANDROID_KEY_ALIAS: ${{ matrix.edition == 'Free' && secrets.IPTV_FREE_KEY_ALIAS || secrets.IPTV_PRO_KEY_ALIAS }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -160,38 +123,23 @@ jobs:
           flutter-version: '3.50.1'
           cache: true
       - run: npm install --no-audit --no-fund
-      - name: Prepare Flutter Android and permanent release signing
-        shell: bash
+      - name: Prepare single unsigned Android app
         run: |
-          edition="$(echo "$EDITION" | tr '[:upper:]' '[:lower:]')"
           npm run tauri -- icon assets/brand/iptv-plus-icon.svg
-          python3 tools/clubtivi/prepare.py --edition "$edition" --icon-png src-tauri/icons/128x128@2x.png --icon-ico src-tauri/icons/icon.ico --version "$RELEASE_VERSION" --build-number 1
-          python3 tools/clubtivi/sign_flutter_android.py
-      - name: Build signed Free or Pro APK and AAB
-        shell: bash
+          python3 tools/clubtivi/prepare.py --icon-png src-tauri/icons/128x128@2x.png --icon-ico src-tauri/icons/icon.ico --version "$RELEASE_VERSION"
+      - name: Resolve Flutter dependencies and run tests
         working-directory: vendor/clubTivi
         run: |
-          edition="$(echo "$EDITION" | tr '[:upper:]' '[:lower:]')"
-          flutter pub get
+          flutter pub upgrade
           flutter test
-          flutter build apk --release --dart-define=IPTV_EDITION="$edition"
-          flutter build appbundle --release --dart-define=IPTV_EDITION="$edition"
-      - name: Verify both signatures and collect genuine Android binaries
-        shell: bash
-        run: |
-          mkdir -p release
-          apk="vendor/clubTivi/build/app/outputs/flutter-apk/app-release.apk"
-          aab="vendor/clubTivi/build/app/outputs/bundle/release/app-release.aab"
-          test -s "$apk" && test -s "$aab"
-          signer="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
-          test -x "$signer"
-          "$signer" verify --verbose "$apk"
-          jarsigner -verify -strict "$aab"
-          cp "$apk" "release/IPTV-Plus-v$RELEASE_VERSION-$EDITION.apk"
-          cp "$aab" "release/IPTV-Plus-v$RELEASE_VERSION-$EDITION.aab"
+      - name: Assemble unsigned Android release APK and AAB
+        working-directory: vendor/clubTivi/android
+        run: bash ./gradlew :app:assembleRelease :app:bundleRelease --no-daemon
+      - name: Validate and package unsigned Android binaries
+        run: python3 scripts/release/collect_unsigned_android.py --root vendor/clubTivi --directory release --version "$RELEASE_VERSION"
       - uses: actions/upload-artifact@v4
         with:
-          name: iptv-android-${{ matrix.edition }}
+          name: iptv-android
           path: |
             release/*.apk
             release/*.aab
@@ -209,7 +157,7 @@ jobs:
           pattern: iptv-*
           path: release
           merge-multiple: true
-      - name: Add all branding, QA manifest and SHA-256
+      - name: Validate exactly four platform packages and include full branding
         env:
           RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
         run: |
@@ -217,13 +165,11 @@ jobs:
           zip -q -r "release/IPTV-Plus-v$RELEASE_VERSION-Branding.zip" assets/brand assets/previews assets/screens
           python3 scripts/release/notes.py "$RELEASE_VERSION"
           python3 scripts/release/validate_artifacts.py --directory release --version "$RELEASE_VERSION"
-      - name: Publish ONLY after all eight Flutter binaries pass
+      - name: Publish four-file UNSIGNED Android development prerelease
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.preflight.outputs.tag }}
         run: |
-          gh release create "$TAG" release/* \
-            --prerelease \
-            --target "$GITHUB_SHA" \
-            --title "IPTV+ $TAG — Free + Pro Android and Windows" \
-            --notes-file "release/RELEASE-NOTES.md"
+          gh release create "$TAG" release/* --prerelease --target "$GITHUB_SHA" \
+            --title "IPTV+ $TAG — UNSIGNED Android development and Windows builds" \
+            --notes-file release/RELEASE-NOTES.md
