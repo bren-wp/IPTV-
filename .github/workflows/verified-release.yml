@@ -64,7 +64,7 @@ jobs:
         run: |
           npm run tauri -- icon assets/brand/iptv-plus-icon.svg
           if ($LASTEXITCODE -ne 0) { throw "IPTV+ icon generation failed" }
-          python tools/clubtivi/prepare.py --edition $env:EDITION.ToLower() --icon-png src-tauri/icons/128x128@2x.png --icon-ico src-tauri/icons/icon.ico --version $env:RELEASE_VERSION --build-number 1
+          python tools/clubtivi/prepare.py --edition $(($env:EDITION).ToLowerInvariant()) --icon-png src-tauri/icons/128x128@2x.png --icon-ico src-tauri/icons/icon.ico --version $env:RELEASE_VERSION --build-number 1
           if ($LASTEXITCODE -ne 0) { throw "Flutter brand overlay failed" }
       - name: Test and compile real Flutter Windows engine
         shell: pwsh
@@ -74,7 +74,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Flutter packages unavailable" }
           flutter test
           if ($LASTEXITCODE -ne 0) { throw "Flutter tests failed" }
-          flutter build windows --release --dart-define=IPTV_EDITION=$env:EDITION.ToLower()
+          flutter build windows --release --dart-define=IPTV_EDITION=$(($env:EDITION).ToLowerInvariant())
           if ($LASTEXITCODE -ne 0) { throw "Flutter Windows build failed" }
       - name: Build real Portable and Setup binaries
         shell: pwsh
