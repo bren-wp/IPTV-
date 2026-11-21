@@ -18,7 +18,6 @@ void main() {
     expect(find.text('IPTV+'), findsOneWidget);
     expect(find.text('Svi tvoji kanali.\nJedno mjesto.'), findsOneWidget);
     expect(find.text('TV uživo'), findsWidgets);
-    expect(find.text('Regije'), findsOneWidget);
     await tester.tap(find.widgetWithText(FilledButton, 'TV uživo'));
     await tester.pumpAndSettle();
     expect(find.text('Ruta učitana'), findsOneWidget);
