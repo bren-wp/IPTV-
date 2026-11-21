@@ -512,6 +512,63 @@ def prepare(root: Path, icon_png: Path, icon_ico: Path, version: str, build_numb
         screen.write_text(data, encoding="utf-8")
         mark_modified(screen, "//")
 
+    # EPG sources can contain bearer-like URL tokens. Do not log their URLs,
+    # auto-configure third-party scraped feeds, or download unbounded XMLTV.
+    epg = root / "lib/data/services/epg_refresh_service.dart"
+    replace_required(epg, "import 'dart:convert';",
+                     "import 'dart:convert';\nimport 'dart:typed_data';")
+    replace_required(epg,
+                     "debugPrint('[EPG] Refreshing source: ${source.name} (${source.url})');",
+                     "debugPrint('[EPG] Refreshing source: ${source.name}');")
+    replace_required(epg,
+                     "'User-Agent': 'clubTivi/1.0 IPTV Player (compatible; XMLTV fetcher)',",
+                     "'User-Agent': 'IPTVPlus/0.2 (compatible; XMLTV fetcher)',")
+    replace_required(epg,
+                     "      headers: {\n"
+                     "        'User-Agent': 'IPTVPlus/0.2 (compatible; XMLTV fetcher)',\n"
+                     "      },",
+                     "      headers: {\n"
+                     "        'User-Agent': 'IPTVPlus/0.2 (compatible; XMLTV fetcher)',\n"
+                     "      },\n"
+                     "      connectTimeout: const Duration(seconds: 15),\n"
+                     "      receiveTimeout: const Duration(seconds: 30),")
+    replace_required(epg,
+                     "      final response = await dio.get<List<int>>(\n"
+                     "        source.url,\n"
+                     "        options: Options(responseType: ResponseType.bytes),\n"
+                     "      );\n\n"
+                     "      final bytes = response.data!;",
+                     "      final remote = Uri.tryParse(source.url);\n"
+                     "      if (remote == null ||\n"
+                     "          (remote.scheme != 'https' && remote.scheme != 'http')) {\n"
+                     "        throw const FormatException('Invalid XMLTV source URL');\n"
+                     "      }\n"
+                     "      final response = await dio.get<ResponseBody>(\n"
+                     "        source.url,\n"
+                     "        options: Options(responseType: ResponseType.stream),\n"
+                     "      );\n"
+                     "      final body = response.data;\n"
+                     "      if (body == null) throw const FormatException('Empty XMLTV source');\n"
+                     "      final chunks = BytesBuilder(copy: false);\n"
+                     "      await for (final chunk in body.stream) {\n"
+                     "        chunks.add(chunk);\n"
+                     "        if (chunks.length > 40000000) {\n"
+                     "          throw const FormatException('XMLTV feed exceeds 40 MB limit');\n"
+                     "        }\n"
+                     "      }\n"
+                     "      final bytes = chunks.takeBytes();")
+    epg_data = epg.read_text(encoding="utf-8")
+    defaults_start = epg_data.find("    final defaults = [")
+    defaults_end = epg_data.find("\n\n    for (final d in defaults)", defaults_start)
+    if defaults_start < 0 or defaults_end < 0:
+        raise RuntimeError("EPG defaults upstream changed")
+    epg_data = (epg_data[:defaults_start] +
+        "    // No unauthorized EPG feeds or embedded access tokens by default.\n"
+        "    final defaults = <({String name, String url, bool enabled})>[];" +
+        epg_data[defaults_end:])
+    epg.write_text(epg_data, encoding="utf-8")
+    mark_modified(epg, "//")
+
     theme = root / "lib/app/theme.dart"
     for old, new in [
         ("Color(0xFF6C5CE7)", "Color(0xFF7C5CFF)"),
