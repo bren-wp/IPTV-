@@ -279,6 +279,64 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
     replace_required(update_service,
                      "final filePath = '${dir.path}/clubtivi-update.apk';",
                      "final filePath = '${dir.path}/iptv-plus-update.apk';")
+    # The upstream updater selected the first GitHub APK, potentially
+    # offering a Free package to Pro users, and required Play-restricted
+    # REQUEST_INSTALL_PACKAGES. Open the official verified release page instead.
+    replace_required(update_service,
+                     "if (name.endsWith('.apk')) {",
+                     "if (name.endsWith('-\${isIptvPlusPro ? 'pro' : 'free'}.apk')) {")
+    replace_required(update_service,
+                     "import 'package:dio/dio.dart';",
+                     "import 'package:dio/dio.dart';\nimport '../../core/iptvplus_edition.dart';")
+    updater_data = update_service.read_text(encoding="utf-8")
+    for import_line in ("import 'dart:io';\n",
+                        "import 'package:flutter/services.dart';\n",
+                        "import 'package:path_provider/path_provider.dart';\n"):
+        updater_data = updater_data.replace(import_line, "")
+    start = updater_data.find("  /// Download APK and trigger install via native FileProvider intent.")
+    end = updater_data.find("\n}\n\n/// Compare semver strings.", start)
+    if start < 0 or end < 0:
+        raise RuntimeError("Unexpected clubTivi updater structure")
+    updater_data = updater_data[:start] + updater_data[end:]
+    updater_data = updater_data.replace(
+        "  static const _channel = MethodChannel('io.github.clubanderson.clubtivi/installer');\n",
+        "")
+    update_service.write_text(updater_data, encoding="utf-8")
+
+    screen = root / "lib/features/channels/channels_screen.dart"
+    replace_required(screen, "if (release.apkDownloadUrl != null)",
+                     "if (release.htmlUrl.isNotEmpty)")
+    replace_required(screen, "_showDownloadDialog(release.apkDownloadUrl!);",
+                     "launchUrl(Uri.parse(release.htmlUrl), mode: LaunchMode.externalApplication);")
+    screen_data = screen.read_text(encoding="utf-8")
+    start = screen_data.find("  Future<void> _showDownloadDialog(String apkUrl) async {")
+    end = screen_data.find("  Future<void> _refreshNowPlaying() async {", start)
+    if start < 0 or end < 0:
+        raise RuntimeError("Unexpected clubTivi update dialog structure")
+    screen_data = screen_data[:start] + screen_data[end:]
+    screen.write_text(screen_data, encoding="utf-8")
+
+    settings_screen = root / "lib/features/settings/settings_screen.dart"
+    replace_required(settings_screen, "if (release.apkDownloadUrl != null)",
+                     "if (release.htmlUrl.isNotEmpty)")
+    replace_required(settings_screen, "'Download & Install'", "'Otvori službeno izdanje'")
+    replace_required(settings_screen, "Navigator.pop(ctx, 'install')", "Navigator.pop(ctx, 'open')")
+    replace_required(settings_screen,
+                     "if (action == 'install' && release.apkDownloadUrl != null && context.mounted) {\n"
+                     "    _downloadUpdate(context, release.apkDownloadUrl!);\n"
+                     "  }",
+                     "if (action == 'open' && release.htmlUrl.isNotEmpty && context.mounted) {\n"
+                     "    await launchUrl(Uri.parse(release.htmlUrl), mode: LaunchMode.externalApplication);\n"
+                     "  }")
+    settings_data = settings_screen.read_text(encoding="utf-8")
+    start = settings_data.find("Future<void> _downloadUpdate(BuildContext context, String apkUrl) async {")
+    end = settings_data.find("class SettingsScreen extends ConsumerStatefulWidget {", start)
+    if start < 0 or end < 0:
+        raise RuntimeError("Unexpected settings update code structure")
+    settings_data = settings_data[:start] + settings_data[end:]
+    settings_screen.write_text(settings_data, encoding="utf-8")
+    mark_modified(settings_screen, "//")
+
     mark_modified(update_service, "//")
 
     # Replace remaining visible upstream names without touching package imports.
