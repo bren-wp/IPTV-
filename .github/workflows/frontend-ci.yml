@@ -1,7 +1,7 @@
 name: IPTV+ frontend checks
 on:
   push:
-    branches: [main, "feat/**"]
+    branches: [main, "feat/**", "fix/**"]
 concurrency:
   group: iptv-frontend-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
