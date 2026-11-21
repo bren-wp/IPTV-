@@ -101,6 +101,8 @@ def prepare(root: Path, icon_png: Path, icon_ico: Path, version: str, build_numb
         "  drift_dev: 2.22.1\n",
     ):
         replace_required(pubspec, unused, "")
+    # go_router >=18 resolves cupertino_ui and requires intl >=0.20.2.
+    replace_required(pubspec, "  intl: ^0.19.0", "  intl: ^0.20.2")
     mark_modified(pubspec, "#")
 
     app = root / "lib/app/app.dart"
