@@ -1,23 +1,17 @@
-name: IPTV+ Flutter native build smoke
+name: IPTV+ unified Android and Windows native smoke
 on:
   push:
-    branches: [main, "feat/**"]
+    branches: [main, "feat/**", "fix/**"]
   workflow_dispatch:
-
 concurrency:
-  group: iptv-flutter-native-${{ github.head_ref || github.ref_name }}
+  group: iptv-flutter-native-${{ github.ref_name }}
   cancel-in-progress: true
-
 jobs:
-  android-debug:
-    name: Android native smoke ${{ matrix.edition }}
+  android:
+    name: Single Android debug APK and full feature set
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        edition: [free, pro]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,33 +32,22 @@ jobs:
           flutter-version: '3.50.1'
           cache: true
       - run: npm install --no-audit --no-fund
-      - name: Apply IPTV+ branded Flutter source
-        env:
-          EDITION: ${{ matrix.edition }}
+      - name: Generate single original branded app
         run: |
           npm run tauri -- icon assets/brand/iptv-plus-icon.svg
-          python3 tools/clubtivi/prepare.py --edition "$EDITION" --icon-png src-tauri/icons/128x128@2x.png --icon-ico src-tauri/icons/icon.ico
-      - name: Build Android debug APK (not a signed production release)
-        env:
-          EDITION: ${{ matrix.edition }}
+          python3 tools/clubtivi/prepare.py --icon-png src-tauri/icons/128x128@2x.png --icon-ico src-tauri/icons/icon.ico --version 0.2.0
+      - name: Build real Android debug APK after dependency update
         working-directory: vendor/clubTivi
         run: |
-          flutter pub get
+          flutter pub upgrade
           flutter test
-          flutter build apk --debug --dart-define=IPTV_EDITION="$EDITION"
+          flutter build apk --debug
           test -s build/app/outputs/flutter-apk/app-debug.apk
-
   windows:
-    name: Windows real Flutter + Portable/Setup smoke ${{ matrix.edition }}
+    name: Single Windows Flutter Portable and Setup
     runs-on: windows-latest
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        edition: [Free, Pro]
-    env:
-      EDITION: ${{ matrix.edition }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -78,35 +61,34 @@ jobs:
           flutter-version: '3.50.1'
           cache: true
       - run: npm install --no-audit --no-fund
-      - name: Apply IPTV+ branding
+      - name: Generate original IPTV+ icons and branding
         shell: pwsh
         run: |
           npm run tauri -- icon assets/brand/iptv-plus-icon.svg
-          if ($LASTEXITCODE -ne 0) { throw "Icon generation failed" }
-          python tools/clubtivi/prepare.py --edition $(($env:EDITION).ToLowerInvariant()) --icon-png src-tauri/icons/128x128@2x.png --icon-ico src-tauri/icons/icon.ico
-          if ($LASTEXITCODE -ne 0) { throw "Flutter overlay failed" }
-      - name: Build Flutter Windows and test UI
+          if ($LASTEXITCODE -ne 0) { throw "Icon generator failed" }
+          python tools/clubtivi/prepare.py --icon-png src-tauri/icons/128x128@2x.png --icon-ico src-tauri/icons/icon.ico --version 0.2.0
+          if ($LASTEXITCODE -ne 0) { throw "Branding failed" }
+      - name: Build Windows Flutter after dependency refresh
         working-directory: vendor/clubTivi
         shell: pwsh
         run: |
-          flutter pub get
-          if ($LASTEXITCODE -ne 0) { throw "Flutter pub get failed" }
+          flutter pub upgrade
+          if ($LASTEXITCODE -ne 0) { throw "Dependencies failed" }
           flutter test
           if ($LASTEXITCODE -ne 0) { throw "Flutter tests failed" }
-          flutter build windows --release --dart-define=IPTV_EDITION=$(($env:EDITION).ToLowerInvariant())
+          flutter build windows --release
           if ($LASTEXITCODE -ne 0) { throw "Flutter Windows build failed" }
-      - name: Validate executable and one-file bundle creation
+      - name: Verify Portable and NSIS Setup generation
         shell: pwsh
         run: |
-          $dir = Join-Path $PWD 'vendor/clubTivi/build/windows/x64/runner/Release'
-          if (!(Test-Path "$dir/iptvplus.exe") -or !(Test-Path "$dir/data")) { throw "Missing Flutter runner or runtime data" }
+          $dir=Join-Path $PWD 'vendor/clubTivi/build/windows/x64/runner/Release'
+          if (!(Test-Path "$dir/iptvplus.exe") -or !(Test-Path "$dir/data")) { throw "Incomplete Flutter runner" }
           Compress-Archive -Path "$dir/*" -DestinationPath tools/portable/flutter-bundle.zip -CompressionLevel Optimal -Force
           dotnet publish tools/portable/IPTVPlusPortable.csproj -c Release -r win-x64 --self-contained true -o portable-output -p:PublishSingleFile=true
-          if ($LASTEXITCODE -ne 0) { throw "Portable package failed" }
-          if (!(Test-Path portable-output/IPTVPlusPortable.exe)) { throw "Portable exe missing" }
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path portable-output/IPTVPlusPortable.exe)) { throw "Portable failed" }
           choco install nsis -y --no-progress
-          if ($LASTEXITCODE -ne 0) { throw "NSIS missing" }
-          $compiler = "C:\Program Files (x86)\NSIS\makensis.exe"
-          $installer = Join-Path $PWD "IPTV-Plus-Test-$($env:EDITION)-Setup.exe"
-          & $compiler "/DVERSION=0.1.0" "/DEDITION=$($env:EDITION)" "/DPAYLOAD=$dir" "/DOUTPUT=$installer" "tools/windows/iptvplus.nsi"
-          if ($LASTEXITCODE -ne 0 -or !(Test-Path $installer)) { throw "NSIS setup packaging failed" }
+          if ($LASTEXITCODE -ne 0) { throw "NSIS installation failed" }
+          $compiler='C:\Program Files (x86)\NSIS\makensis.exe'
+          $output=Join-Path $PWD 'IPTV-Plus-Test-Setup.exe'
+          & $compiler "/DVERSION=0.2.0" "/DPAYLOAD=$dir" "/DOUTPUT=$output" tools/windows/iptvplus.nsi
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $output)) { throw "NSIS Setup failed" }

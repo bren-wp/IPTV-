@@ -11,14 +11,10 @@ import os
 from pathlib import Path
 
 REQUIRED = (
-    "IPTV_FREE_KEYSTORE_BASE64",
-    "IPTV_FREE_STORE_PASSWORD",
-    "IPTV_FREE_KEY_PASSWORD",
-    "IPTV_FREE_KEY_ALIAS",
-    "IPTV_PRO_KEYSTORE_BASE64",
-    "IPTV_PRO_STORE_PASSWORD",
-    "IPTV_PRO_KEY_PASSWORD",
-    "IPTV_PRO_KEY_ALIAS",
+    "IPTV_ANDROID_KEYSTORE_BASE64",
+    "IPTV_ANDROID_STORE_PASSWORD",
+    "IPTV_ANDROID_KEY_PASSWORD",
+    "IPTV_ANDROID_KEY_ALIAS",
 )
 
 
@@ -36,14 +32,14 @@ def report() -> bool:
             "Missing **secret names** (not values): "
             + ", ".join(f"`{key}`" for key in missing)
             + "\n\nAdd these in **Settings → Secrets and variables → Actions → "
-              "Repository secrets**. Keep original permanent Free/Pro keys private.\n"
+              "Repository secrets**. Keep original permanent IPTV+ signing key private.\n"
               "The Android and Windows native smoke checks remain separate. "
               "No placeholder APK/AAB or incomplete GitHub Release is allowed.\n"
         )
         print("RELEASE BLOCKED: missing signing secrets: " + ", ".join(missing))
         print("::warning title=IPTV+ release not published::Signing prerequisites are missing. See run summary.")
     else:
-        message = "## IPTV+ release signing configured\n\nAll required Free/Pro secret names are populated. Native builds and signature validation follow.\n"
+        message = "## IPTV+ release signing configured\n\nAll required IPTV+ secret names are populated. Native builds and signature validation follow.\n"
         print("Signing prerequisites are present. Actual certificates will be validated by the release build.")
     if summary_path:
         with open(summary_path, "a", encoding="utf-8") as fh:
@@ -54,4 +50,4 @@ def report() -> bool:
 if __name__ == "__main__":
     ready = report()
     if not ready and os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch":
-        raise SystemExit("Manual release rejected: configure the eight Android signing secrets first.")
+        raise SystemExit("Manual release rejected: configure the four Android signing secrets first.")

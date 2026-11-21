@@ -2,7 +2,6 @@
 // Uses clubTivi as engine for M3U, Xtream, EPG and playback.
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/iptvplus_edition.dart';
 
 class IptvPlusHomeScreen extends StatelessWidget {
   const IptvPlusHomeScreen({super.key});
@@ -40,7 +39,7 @@ class IptvPlusHomeScreen extends StatelessWidget {
                           border: Border.all(color: accent.withValues(alpha: .6)),
                           color: accent.withValues(alpha: .14),
                         ),
-                        child: Text(iptvPlusTitle, style: const TextStyle(
+                        child: const Text('Sve uključeno', style: TextStyle(
                             color: Colors.white, fontWeight: FontWeight.w700)),
                       ),
                     ]),

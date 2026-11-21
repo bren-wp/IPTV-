@@ -15,7 +15,7 @@ import subprocess
 import sys
 
 UPSTREAM = "ac690553a7aba33e8f91db653e1ac74e74a9e3b4"
-APP_IDS = {"free": "com.brendigo.iptvplus.free", "pro": "com.brendigo.iptvplus.pro"}
+APP_ID = "com.brendigo.iptvplus"
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_UPSTREAM = ROOT / "vendor" / "clubTivi"
 
@@ -50,16 +50,14 @@ def ensure_pristine(root: Path) -> None:
         raise RuntimeError("clubTivi worktree has local changes. Use a fresh checkout to avoid overwriting edits.")
 
 
-def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: str, build_number: int) -> None:
+def prepare(root: Path, icon_png: Path, icon_ico: Path, version: str, build_number: int) -> None:
     ensure_pristine(root)
-    if edition not in APP_IDS:
-        raise RuntimeError("Edition must be free or pro.")
     if not re.fullmatch(r"\d+\.\d+\.\d+", version) or build_number < 1:
         raise RuntimeError("Invalid semantic version/build number.")
     major, minor, patch = map(int, version.split("."))
     if minor >= 1000 or patch >= 1000 or major >= 1000:
         raise RuntimeError("Version components must be <1000 for monotonic Play versionCode")
-    # Every GitHub Release increments versionCode for both Free and Pro.
+    # Unified IPTV+ versionCode stays monotonic for updates.
     build_number = max(build_number, major * 1000000 + minor * 1000 + patch)
     if not icon_png.is_file() or icon_png.stat().st_size < 300:
         raise RuntimeError("Provide a genuine IPTV+ PNG launcher icon, at least 300 bytes.")
@@ -80,6 +78,17 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
         'assets/icon/clubtivi-icon.png', 'assets/icon/iptv-plus-icon.png'
     )
     pubspec.write_text(updated, encoding="utf-8")
+    # Current stable compatible release floor, verified on pub.dev Nov 2026.
+    # Full lockfile refresh requires Flutter analyze + native build gates.
+    for previous, current in (
+        ("  dio: ^5.7.0", "  dio: ^5.11.1"),
+        ("  drift: ^2.22.1", "  drift: ^2.35.4"),
+        ("  drift_dev: ^2.22.1", "  drift_dev: ^2.35.4"),
+        ("  shared_preferences: ^2.5.4", "  shared_preferences: ^2.5.6"),
+        ("  media_kit: ^1.1.11", "  media_kit: ^1.2.6"),
+        ("  go_router: ^14.8.1", "  go_router: ^18.1.4"),
+    ):
+        replace_required(pubspec, previous, current)
     mark_modified(pubspec, "#")
 
     app = root / "lib/app/app.dart"
@@ -87,22 +96,19 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
     replace_required(app, "title: 'clubTivi',", "title: iptvPlusTitle,")
     mark_modified(app, "//")
 
+    # One unified app with all previously Pro-gated functionality.
     edition_file = root / "lib/core/iptvplus_edition.dart"
     edition_file.write_text(
-        "// IPTV+ downstream addition by Brendigo.\n"
-        "const iptvPlusEdition = String.fromEnvironment('IPTV_EDITION', defaultValue: 'free');\n"
-        "const isIptvPlusPro = iptvPlusEdition == 'pro';\n"
-        "const iptvPlusTitle = isIptvPlusPro ? 'IPTV+ Pro' : 'IPTV+ Free';\n",
+        "// IPTV+ unified downstream branding; clubTivi copyright retained.\n"
+        "const iptvPlusTitle = 'IPTV+';\n",
         encoding="utf-8",
     )
 
-    # Activate the upstream's existing Free/Pro feature-gating instead of merely
-    # changing the displayed edition name. Internal identifiers stay original.
     main = root / "lib/main.dart"
     replace_required(main, "import 'app/app.dart';",
                      "import 'app/app.dart';\nimport 'core/feature_gate.dart';\nimport 'core/iptvplus_edition.dart';")
     replace_required(main, "  MediaKit.ensureInitialized();",
-                     "  FeatureGate.setTier(isIptvPlusPro ? AppTier.pro : AppTier.free);\n  MediaKit.ensureInitialized();")
+                     "  FeatureGate.setTier(AppTier.pro);\n  MediaKit.ensureInitialized();")
     mark_modified(main, "//")
 
     # clubTivi already has a TV remote-friendly, one-click provider chooser.
@@ -133,7 +139,7 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
                      "const _SectionHeader(title: 'Javne IPTV zbirke — prava sadržaja provjeriti')")
     mark_modified(providers, "//")
 
-    # Resyncing an existing provider must not count as adding a new Free provider.
+    # Resyncing an existing provider must not count as adding a new provider.
     provider_manager = root / "lib/features/providers/provider_manager.dart"
     replace_required(provider_manager,
                      "    await _checkProviderLimit();\n    await _db.upsertProvider(",
@@ -280,14 +286,14 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
                      "final filePath = '${dir.path}/clubtivi-update.apk';",
                      "final filePath = '${dir.path}/iptv-plus-update.apk';")
     # The upstream updater selected the first GitHub APK, potentially
-    # offering a Free package to Pro users, and required Play-restricted
+    # offering the wrong package, and required Play-restricted
     # REQUEST_INSTALL_PACKAGES. Open the official verified release page instead.
     replace_required(update_service,
                      "if (name.endsWith('.apk')) {",
-                     "if (name.endsWith('-${isIptvPlusPro ? 'pro' : 'free'}.apk')) {")
+                     "if (name == 'iptv-plus-v$version.apk') {")
     replace_required(update_service,
                      "import 'package:dio/dio.dart';",
-                     "import 'package:dio/dio.dart';\nimport '../../core/iptvplus_edition.dart';")
+                     "import 'package:dio/dio.dart';")
     updater_data = update_service.read_text(encoding="utf-8")
     for import_line in ("import 'dart:io';\n",
                         "import 'package:flutter/services.dart';\n",
@@ -362,7 +368,7 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
     mark_modified(theme, "//")
 
     manifest = root / "android/app/src/main/AndroidManifest.xml"
-    replace_required(manifest, 'android:label="clubTivi"', f'android:label="IPTV+ {edition.title()}"')
+    replace_required(manifest, 'android:label="clubTivi"', 'android:label="IPTV+"')
     # The original in-app APK installation permission isn't required for Google Play distribution.
     manifest.write_text(
         manifest.read_text(encoding="utf-8").replace(
@@ -432,7 +438,7 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
         1,
     )
     gradle.write_text(gradle_source, encoding="utf-8")
-    replace_required(gradle, 'applicationId = "io.github.clubanderson.clubtivi"', f'applicationId = "{APP_IDS[edition]}"')
+    replace_required(gradle, 'applicationId = "io.github.clubanderson.clubtivi"', f'applicationId = "{APP_ID}"')
     replace_required(gradle, "minSdk = flutter.minSdkVersion", "minSdk = 24")
     # Signing with a debug key is not suitable for release. Never commit a private keystore.
     replace_required(gradle, 'signingConfig = signingConfigs.getByName("debug")',
@@ -440,7 +446,7 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
     mark_modified(gradle, "//")
 
     window_main = root / "windows/runner/main.cpp"
-    replace_required(window_main, 'window.Create(L"clubTivi",', 'window.Create(L"IPTV+ ' + edition.title() + '",')
+    replace_required(window_main, 'window.Create(L"clubTivi",', 'window.Create(L"IPTV+",')
     mark_modified(window_main, "//")
 
     cmake = root / "windows/CMakeLists.txt"
@@ -449,8 +455,8 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
 
     resources = root / "windows/runner/Runner.rc"
     for old, new in [
-        ('"FileDescription", "clubTivi"', '"FileDescription", "IPTV+ ' + edition.title() + '"'),
-        ('"ProductName", "clubTivi"', '"ProductName", "IPTV+ ' + edition.title() + '"'),
+        ('"FileDescription", "clubTivi"', '"FileDescription", "IPTV+"'),
+        ('"ProductName", "clubTivi"', '"ProductName", "IPTV+"'),
         ('"InternalName", "clubtivi"', '"InternalName", "iptvplus"'),
         ('"OriginalFilename", "clubtivi.exe"', '"OriginalFilename", "iptvplus.exe"'),
     ]:
@@ -460,26 +466,24 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
                      '"Copyright (C) 2026 io.github.clubanderson. All rights reserved."',
                      '"Original clubTivi contributors; downstream IPTV+ modifications (C) 2026 Brendigo."')
     mark_modified(resources, "//")
-    print(f"Prepared IPTV+ {edition.title()} based on clubTivi {UPSTREAM}.")
+    print(f"Prepared unified IPTV+ based on clubTivi {UPSTREAM}.")
     print("Run: flutter pub get")
-    print(f"Run: flutter build apk --release --dart-define=IPTV_EDITION={edition}")
-    print(f"Run: flutter build appbundle --release --dart-define=IPTV_EDITION={edition}")
-    print("Free/Pro feature gate and ten optional regional/public presets applied.")
+    print("Run: flutter build apk --release")
+    print("Run: flutter build appbundle --release")
+    print("All advanced Pro-tier features enabled; ten optional regional sources included.")
     print("WARNING: Android release signing and production checks remain required.")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--edition", required=True, choices=APP_IDS.keys())
     parser.add_argument("--checkout", type=Path, default=DEFAULT_UPSTREAM)
     parser.add_argument("--icon-png", type=Path, required=True)
     parser.add_argument("--icon-ico", type=Path, required=True)
-    parser.add_argument("--version", default="0.1.0")
+    parser.add_argument("--version", default="0.2.0")
     parser.add_argument("--build-number", type=int, default=1)
     args = parser.parse_args()
     try:
-        prepare(args.checkout.resolve(), args.edition,
-                args.icon_png.resolve(), args.icon_ico.resolve(),
+        prepare(args.checkout.resolve(), args.icon_png.resolve(), args.icon_ico.resolve(),
                 args.version, args.build_number)
     except (RuntimeError, OSError, subprocess.CalledProcessError) as error:
         parser.exit(1, f"IPTV+ clubTivi preparation failed: {error}\n")
