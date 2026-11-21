@@ -1,33 +1,27 @@
 !include "MUI2.nsh"
-!include "LogicLib.nsh"
-
 !ifndef VERSION
-  !error "VERSION must be provided"
-!endif
-!ifndef EDITION
-  !error "EDITION must be provided"
+  !error "VERSION must be supplied"
 !endif
 !ifndef PAYLOAD
-  !error "PAYLOAD directory must be provided"
+  !error "PAYLOAD must be supplied"
 !endif
 !ifndef OUTPUT
-  !error "OUTPUT file must be provided"
+  !error "OUTPUT must be supplied"
 !endif
 
 Unicode True
-Name "IPTV+ ${EDITION}"
+Name "IPTV+"
 OutFile "${OUTPUT}"
-InstallDir "$LOCALAPPDATA\\Programs\\IPTVPlus\\${EDITION}"
+InstallDir "$LOCALAPPDATA\Programs\IPTVPlus"
 RequestExecutionLevel user
 ShowInstDetails show
 ShowUninstDetails show
 SetCompressor /SOLID lzma
 VIProductVersion "${VERSION}.0"
-VIAddVersionKey "ProductName" "IPTV+ ${EDITION}"
+VIAddVersionKey "ProductName" "IPTV+"
 VIAddVersionKey "CompanyName" "Brendigo"
-VIAddVersionKey "FileDescription" "IPTV+ ${EDITION} Setup"
+VIAddVersionKey "FileDescription" "IPTV+ Setup"
 VIAddVersionKey "FileVersion" "${VERSION}"
-VIAddVersionKey "LegalCopyright" "IPTV+ downstream changes © 2026 Brendigo"
 
 !define MUI_ABORTWARNING
 !insertmacro MUI_PAGE_WELCOME
@@ -38,22 +32,22 @@ VIAddVersionKey "LegalCopyright" "IPTV+ downstream changes © 2026 Brendigo"
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "Croatian"
 
-Section "IPTV+ ${EDITION}" Main
+Section "IPTV+" Main
   SetOutPath "$INSTDIR"
-  File /r "${PAYLOAD}\\*"
-  WriteUninstaller "$INSTDIR\\Uninstall.exe"
-  CreateDirectory "$SMPROGRAMS\\IPTV+ ${EDITION}"
-  CreateShortcut "$SMPROGRAMS\\IPTV+ ${EDITION}\\IPTV+ ${EDITION}.lnk" "$INSTDIR\\iptvplus.exe"
-  CreateShortcut "$SMPROGRAMS\\IPTV+ ${EDITION}\\Deinstaliraj.lnk" "$INSTDIR\\Uninstall.exe"
-  WriteRegStr HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\IPTVPlus${EDITION}" "DisplayName" "IPTV+ ${EDITION}"
-  WriteRegStr HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\IPTVPlus${EDITION}" "UninstallString" '"$INSTDIR\\Uninstall.exe"'
-  WriteRegStr HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\IPTVPlus${EDITION}" "DisplayVersion" "${VERSION}"
+  File /r "${PAYLOAD}\*"
+  WriteUninstaller "$INSTDIR\Uninstall.exe"
+  CreateDirectory "$SMPROGRAMS\IPTV+"
+  CreateShortcut "$SMPROGRAMS\IPTV+\IPTV+.lnk" "$INSTDIR\iptvplus.exe"
+  CreateShortcut "$SMPROGRAMS\IPTV+\Deinstaliraj.lnk" "$INSTDIR\Uninstall.exe"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\IPTVPlus" "DisplayName" "IPTV+"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\IPTVPlus" "UninstallString" '"$INSTDIR\Uninstall.exe"'
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\IPTVPlus" "DisplayVersion" "${VERSION}"
 SectionEnd
 
 Section "Uninstall"
-  Delete "$SMPROGRAMS\\IPTV+ ${EDITION}\\IPTV+ ${EDITION}.lnk"
-  Delete "$SMPROGRAMS\\IPTV+ ${EDITION}\\Deinstaliraj.lnk"
-  RMDir "$SMPROGRAMS\\IPTV+ ${EDITION}"
-  DeleteRegKey HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\IPTVPlus${EDITION}"
+  Delete "$SMPROGRAMS\IPTV+\IPTV+.lnk"
+  Delete "$SMPROGRAMS\IPTV+\Deinstaliraj.lnk"
+  RMDir "$SMPROGRAMS\IPTV+"
+  DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\IPTVPlus"
   RMDir /r "$INSTDIR"
 SectionEnd
