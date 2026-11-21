@@ -65,4 +65,7 @@ jobs:
         run: flutter pub get
       - name: Static Flutter analysis
         working-directory: vendor/clubTivi
-        run: flutter analyze --no-fatal-infos
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: Execute Flutter unit and widget tests
+        working-directory: vendor/clubTivi
+        run: flutter test --no-pub
