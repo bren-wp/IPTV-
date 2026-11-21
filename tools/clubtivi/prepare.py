@@ -314,6 +314,24 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
     )
     mark_modified(manifest, "<!--")
 
+    # Flutter 3.50 requires Gradle >=9.3.1, AGP >=9.1.1. Keep compatible
+    # legacy Kotlin/plugin DSL while dependencies complete AGP9 migration.
+    wrapper = root / "android/gradle/wrapper/gradle-wrapper.properties"
+    replace_required(wrapper, "gradle-8.14-all.zip", "gradle-9.5.0-all.zip")
+    settings_gradle = root / "android/settings.gradle.kts"
+    replace_required(settings_gradle,
+                     'id("com.android.application") version "8.11.1" apply false',
+                     'id("com.android.application") version "9.3.1" apply false')
+    replace_required(settings_gradle,
+                     'id("org.jetbrains.kotlin.android") version "2.2.20" apply false',
+                     'id("org.jetbrains.kotlin.android") version "2.4.20" apply false')
+    gradle_properties = root / "android/gradle.properties"
+    properties_text = gradle_properties.read_text(encoding="utf-8")
+    for entry in ("android.builtInKotlin=false", "android.newDsl=false"):
+        if entry not in properties_text:
+            properties_text += "\n" + entry
+    gradle_properties.write_text(properties_text.rstrip() + "\n", encoding="utf-8")
+
     gradle = root / "android/app/build.gradle.kts"
     replace_required(gradle, 'applicationId = "io.github.clubanderson.clubtivi"', f'applicationId = "{APP_IDS[edition]}"')
     replace_required(gradle, "minSdk = flutter.minSdkVersion", "minSdk = 24")
