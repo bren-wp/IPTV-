@@ -98,7 +98,7 @@ def prepare(root: Path, icon_png: Path, icon_ico: Path, version: str, build_numb
         "  build_runner: ^2.4.14\n",
         "  freezed: ^2.5.7\n",
         "  json_serializable: ^6.9.4\n",
-        "  drift_dev: ^2.22.1\n",
+        "  drift_dev: 2.22.1\n",
     ):
         replace_required(pubspec, unused, "")
     mark_modified(pubspec, "#")
