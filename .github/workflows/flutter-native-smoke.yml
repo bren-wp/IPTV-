@@ -27,6 +27,8 @@ jobs:
         with:
           node-version: '22'
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
