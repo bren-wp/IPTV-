@@ -185,6 +185,57 @@ def prepare(root: Path, icon_png: Path, icon_ico: Path, version: str, build_numb
                      "    _nowPlayingTimer?.cancel();\n    _iptvPlusRefreshTimer?.cancel();")
     mark_modified(channels, "//")
 
+    # Limit untrusted remote M3U payload size and bound network time.
+    replace_required(provider_manager,
+                     "import 'package:dio/dio.dart';",
+                     "import 'package:dio/dio.dart';\nimport 'dart:convert';\nimport 'dart:typed_data';")
+    original_reader = """  Future<List<Channel>> _refreshM3u(db.Provider provider) async {
+    final dio = Dio();
+    try {
+      final response = await dio.get<String>(provider.url!);
+      final result = _m3uParser.parse(response.data!, providerId: provider.id);
+      return result.channels;
+    } finally {
+      dio.close();
+    }
+  }"""
+    bounded_reader = """  Future<List<Channel>> _refreshM3u(db.Provider provider) async {
+    final remote = Uri.tryParse(provider.url ?? '');
+    if (remote == null ||
+        (remote.scheme != 'https' && remote.scheme != 'http')) {
+      throw const FormatException('Invalid playlist URL');
+    }
+    if (provider.id.startsWith('iptvplus-') &&
+        (remote.scheme != 'https' || remote.userInfo.isNotEmpty)) {
+      throw const FormatException('Public lists require HTTPS');
+    }
+    final maxBytes = provider.id.startsWith('iptvplus-') ? 8000000 : 30000000;
+    final dio = Dio(BaseOptions(
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 20),
+    ));
+    try {
+      final response = await dio.get<ResponseBody>(
+        provider.url!,
+        options: Options(responseType: ResponseType.stream),
+      );
+      final stream = response.data;
+      if (stream == null) throw const FormatException('Empty list');
+      final bytes = BytesBuilder(copy: false);
+      await for (final chunk in stream.stream) {
+        bytes.add(chunk);
+        if (bytes.length > maxBytes) throw const FormatException('Playlist too large');
+      }
+      final contents = utf8.decode(bytes.takeBytes());
+      if (!contents.trimLeft().startsWith('#EXTM3U')) {
+        throw const FormatException('Invalid M3U header');
+      }
+      return _m3uParser.parse(contents, providerId: provider.id).channels;
+    } finally {
+      dio.close(force: true);
+    }
+  }"""
+    replace_required(provider_manager, original_reader, bounded_reader)
     mark_modified(provider_manager, "//")
 
     # IPTV+ is the primary Flutter application UI, keeping clubTivi as the engine.
@@ -447,6 +498,23 @@ def prepare(root: Path, icon_png: Path, icon_ico: Path, version: str, build_numb
 
     window_main = root / "windows/runner/main.cpp"
     replace_required(window_main, 'window.Create(L"clubTivi",', 'window.Create(L"IPTV+",')
+    replace_required(window_main,
+                     '#include <windows.h>',
+                     '#include <windows.h>\n#include <algorithm>')
+    replace_required(window_main,
+                     '  Win32Window::Point origin(10, 10);\n'
+                     '  Win32Window::Size size(1280, 720);',
+                     '  RECT workArea{};\n'
+                     '  const bool hasArea = ::SystemParametersInfoW(SPI_GETWORKAREA, 0, &workArea, 0) != 0;\n'
+                     '  const int left = hasArea ? workArea.left : 0;\n'
+                     '  const int top = hasArea ? workArea.top : 0;\n'
+                     '  const int screenWidth = hasArea ? (workArea.right - workArea.left) : ::GetSystemMetrics(SM_CXSCREEN);\n'
+                     '  const int screenHeight = hasArea ? (workArea.bottom - workArea.top) : ::GetSystemMetrics(SM_CYSCREEN);\n'
+                     '  const int width = std::min(1180, std::max(240, screenWidth - 64));\n'
+                     '  const int height = std::min(760, std::max(180, screenHeight - 80));\n'
+                     '  Win32Window::Point origin(left + std::max(0, (screenWidth - width) / 2),\n'
+                     '                            top + std::max(0, (screenHeight - height) / 2));\n'
+                     '  Win32Window::Size size(width, height);')
     mark_modified(window_main, "//")
 
     cmake = root / "windows/CMakeLists.txt"
