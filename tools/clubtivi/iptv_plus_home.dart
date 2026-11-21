@@ -18,7 +18,8 @@ class IptvPlusHomeScreen extends StatelessWidget {
       body: SafeArea(
         child: LayoutBuilder(builder: (context, constraints) {
           final wide = constraints.maxWidth >= 850;
-          final pad = wide ? 32.0 : 16.0;
+          final compact = constraints.maxWidth < 430;
+          final pad = wide ? 32.0 : compact ? 12.0 : 16.0;
           return CustomScrollView(
             slivers: [
               SliverPadding(
@@ -68,7 +69,7 @@ class IptvPlusHomeScreen extends StatelessWidget {
                           const SizedBox(height: 17),
                           Text('Svi tvoji kanali.\nJedno mjesto.',
                             style: TextStyle(color: Colors.white,
-                              fontSize: wide ? 43 : 32,
+                              fontSize: wide ? 43 : compact ? 28 : 32,
                               height: 1.12, fontWeight: FontWeight.w800)),
                           const SizedBox(height: 14),
                           const Text('Hrvatska · Slovenija · BiH · Srbija',
@@ -123,8 +124,10 @@ class IptvPlusHomeScreen extends StatelessWidget {
                       ];
                       return GridView.builder(
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: columns, crossAxisSpacing: 11,
-                          mainAxisSpacing: 11, childAspectRatio: wide ? 1.4 : 1.65),
+                          crossAxisCount: columns,
+                          crossAxisSpacing: compact ? 8 : 11,
+                          mainAxisSpacing: compact ? 8 : 11,
+                          mainAxisExtent: wide ? 124 : compact ? 112 : 130),
                         itemCount: cards.length, shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         itemBuilder: (context, index) => _CategoryTile(cards[index]),
@@ -202,7 +205,7 @@ class _CategoryTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       onTap: () => context.go(data.route),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.start,
