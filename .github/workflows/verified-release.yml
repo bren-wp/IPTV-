@@ -57,6 +57,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: '3.50.1'
           cache: true
       - run: npm install --no-audit --no-fund
       - name: Apply IPTV+ brand to clubTivi Flutter engine
@@ -133,6 +134,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: '3.50.1'
           cache: true
       - run: npm install --no-audit --no-fund
       - name: Prepare Flutter Android and permanent release signing

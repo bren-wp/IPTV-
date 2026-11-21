@@ -59,9 +59,31 @@ jobs:
           assert (root/'windows/runner/resources/app_icon.ico').is_file()
           print(f'IPTV+ {edition.upper()}: patch and license checks passed')
           PY
+      - name: Verify Android toolchain migration and edition-safe updates
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('vendor/clubTivi')
+          wrapper=(root/'android/gradle/wrapper/gradle-wrapper.properties').read_text()
+          settings=(root/'android/settings.gradle.kts').read_text()
+          props=(root/'android/gradle.properties').read_text()
+          updates=(root/'lib/data/services/app_update_service.dart').read_text()
+          manifest=(root/'android/app/src/main/AndroidManifest.xml').read_text()
+          assert 'gradle-9.5.0-all.zip' in wrapper
+          assert 'com.android.application") version "9.3.1"' in settings
+          assert 'org.jetbrains.kotlin.android") version "2.4.20"' in settings
+          assert 'android.builtInKotlin=false' in props and 'android.newDsl=false' in props
+          assert "isIptvPlusPro ? 'pro' : 'free'" in updates
+          assert 'clubanderson/clubTivi' not in updates
+          assert 'REQUEST_INSTALL_PACKAGES' not in manifest
+          assert 'downloadAndInstall' not in updates
+          print('Android build toolchain and safe updater verified')
+          PY
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: '3.50.1'
           cache: true
       - name: Fetch Flutter dependencies
         working-directory: vendor/clubTivi
