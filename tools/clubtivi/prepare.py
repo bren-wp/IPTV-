@@ -137,6 +137,56 @@ def prepare(root: Path, edition: str, icon_png: Path, icon_ico: Path, version: s
                      "    await _db.upsertProvider(")
     mark_modified(provider_manager, "//")
 
+    # IPTV+ is the primary Flutter application UI, keeping clubTivi as the engine.
+    # All screens remain platform-aware and must pass Android/TV/Windows visual QA.
+    home_dir = root / "lib/features/home"
+    home_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(ROOT / "tools/clubtivi/iptv_plus_home.dart",
+                    home_dir / "iptv_plus_home.dart")
+    shutil.copyfile(ROOT / "tools/clubtivi/iptv_plus_home_test.dart",
+                    root / "test/iptv_plus_home_test.dart")
+
+    router = root / "lib/app/router.dart"
+    replace_required(router, "import '../features/channels/channels_screen.dart';",
+                     "import '../features/channels/channels_screen.dart';\n"
+                     "import '../features/home/iptv_plus_home.dart';")
+    replace_required(router, "  final sidebarRoutes = [",
+                     "  final sidebarRoutes = [\n    GoRoute(\n"
+                     "      path: '/home',\n"
+                     "      builder: (context, state) => const IptvPlusHomeScreen(),\n"
+                     "    ),")
+    mark_modified(router, "//")
+
+    splash = root / "lib/features/splash/splash_screen.dart"
+    replace_required(splash, "context.go('/');", "context.go('/home');")
+    replace_required(splash, "assets/icon/clubtivi-icon.png",
+                     "assets/icon/iptv-plus-icon.png")
+    splash_data = splash.read_text(encoding="utf-8")
+    splash_data = splash_data.replace("'clubTivi'", "'IPTV+'")
+    splash_data = splash_data.replace("'live tv, your way'", "'Televizija po tvome'")
+    splash_data = splash_data.replace("Color(0xFF6C5CE7)", "Color(0xFF7C5CFF)")
+    splash_data = splash_data.replace("Color(0xFF0A0A0F)", "Color(0xFF080D1C)")
+    splash.write_text(splash_data, encoding="utf-8")
+    mark_modified(splash, "//")
+
+    tv_shell = root / "lib/platform/tv/tv_shell.dart"
+    replace_required(tv_shell,
+        "_NavItem(icon: Icons.live_tv_rounded, label: 'Live TV', route: '/'),",
+        "_NavItem(icon: Icons.home_rounded, label: 'Početna', route: '/home'),\n"
+        "    _NavItem(icon: Icons.live_tv_rounded, label: 'TV uživo', route: '/'),")
+    for old, new in [
+        ("label: 'Guide'", "label: 'TV vodič'"),
+        ("label: 'Providers'", "label: 'Izvori'"),
+        ("label: 'EPG Map'", "label: 'EPG postavke'"),
+        ("label: 'Settings'", "label: 'Postavke'"),
+        ("'clubTivi'", "'IPTV+'"),
+        ("Color(0xFF6C5CE7)", "Color(0xFF7C5CFF)"),
+        ("Color(0xFF0D0D14)", "Color(0xFF080D1C)"),
+    ]:
+        if old in tv_shell.read_text(encoding="utf-8"):
+            replace_required(tv_shell, old, new)
+    mark_modified(tv_shell, "//")
+
     theme = root / "lib/app/theme.dart"
     for old, new in [
         ("Color(0xFF6C5CE7)", "Color(0xFF7C5CFF)"),
