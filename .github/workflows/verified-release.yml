@@ -17,8 +17,8 @@ jobs:
     permissions:
       contents: read
     outputs:
-      version: ${{ steps.check.outputs.version }
-      tag: ${{ steps.check.outputs.tag }
+      version: ${{ steps.check.outputs.version }}
+      tag: ${{ steps.check.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,8 +27,8 @@ jobs:
       - name: New unique version check
         id: check
         env:
-          GH_TOKEN: ${{ github.token }
-          RELEASE_VERSION: ${{ inputs.version }
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
         run: python3 scripts/release/check_version.py
       - run: npm install --no-audit --no-fund
       - run: npm run build
@@ -45,38 +45,59 @@ jobs:
       matrix:
         edition: [Free, Pro]
     env:
-      VITE_IPTV_EDITION: ${{ matrix.edition == 'Free' && 'free' || 'pro' }
+      EDITION: ${{ matrix.edition }}
+      RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.50.1'
+          cache: true
       - run: npm install --no-audit --no-fund
-      - name: IPTV+ native icons
-        run: npm run tauri -- icon assets/brand/iptv-plus-icon.svg
-      - name: Build actual Windows binary and NSIS Setup
+      - name: Apply IPTV+ brand to clubTivi Flutter engine
         shell: pwsh
         run: |
-          $config = "src-tauri/tauri.$($env:VITE_IPTV_EDITION).conf.json"
-          npm run tauri -- build --config $config --bundles nsis --ci
-          if ($LASTEXITCODE -ne 0) { throw "Windows build failed" }
-      - name: Collect Portable and Setup
+          npm run tauri -- icon assets/brand/iptv-plus-icon.svg
+          if ($LASTEXITCODE -ne 0) { throw "IPTV+ icon generation failed" }
+          python tools/clubtivi/prepare.py --edition $(($env:EDITION).ToLowerInvariant()) --icon-png src-tauri/icons/128x128@2x.png --icon-ico src-tauri/icons/icon.ico --version $env:RELEASE_VERSION --build-number 1
+          if ($LASTEXITCODE -ne 0) { throw "Flutter brand overlay failed" }
+      - name: Test and compile real Flutter Windows engine
         shell: pwsh
-        env:
-          RELEASE_VERSION: ${{ needs.preflight.outputs.version }
-          EDITION: ${{ matrix.edition }
+        working-directory: vendor/clubTivi
         run: |
+          flutter pub get
+          if ($LASTEXITCODE -ne 0) { throw "Flutter packages unavailable" }
+          flutter test
+          if ($LASTEXITCODE -ne 0) { throw "Flutter tests failed" }
+          flutter build windows --release --dart-define=IPTV_EDITION=$(($env:EDITION).ToLowerInvariant())
+          if ($LASTEXITCODE -ne 0) { throw "Flutter Windows build failed" }
+      - name: Build real Portable and Setup binaries
+        shell: pwsh
+        run: |
+          $payload = Join-Path $PWD 'vendor/clubTivi/build/windows/x64/runner/Release'
+          if (!(Test-Path "$payload/iptvplus.exe") -or !(Test-Path "$payload/data")) { throw "Missing full Flutter Windows runner" }
           New-Item -ItemType Directory -Force release | Out-Null
-          $exe = "src-tauri/target/release/iptv-plus.exe"
-          if (!(Test-Path $exe)) { throw "Actual Windows application .exe is missing" }
-          $setups = @(Get-ChildItem "src-tauri/target/release/bundle/nsis" -Recurse -Filter "*setup.exe" -File)
-          if ($setups.Count -ne 1) { throw "Expected one real NSIS setup, found $($setups.Count)" }
-          Copy-Item $exe "release/IPTV-Plus-v$($env:RELEASE_VERSION)-$($env:EDITION)-Portable.exe"
-          Copy-Item $setups[0].FullName "release/IPTV-Plus-v$($env:RELEASE_VERSION)-$($env:EDITION)-Setup.exe"
+          Compress-Archive -Path "$payload/*" -DestinationPath "tools/portable/flutter-bundle.zip" -CompressionLevel Optimal -Force
+          dotnet publish tools/portable/IPTVPlusPortable.csproj -c Release -r win-x64 --self-contained true -o "portable-output" -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true
+          if ($LASTEXITCODE -ne 0) { throw "One-file Portable build failed" }
+          if (!(Test-Path "portable-output/IPTVPlusPortable.exe")) { throw "Portable exe absent" }
+          Copy-Item "portable-output/IPTVPlusPortable.exe" "release/IPTV-Plus-v$($env:RELEASE_VERSION)-$($env:EDITION)-Portable.exe"
+          choco install nsis -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "NSIS install failed" }
+          $compiler = "C:\Program Files (x86)\NSIS\makensis.exe"
+          if (!(Test-Path $compiler)) { throw "NSIS compiler absent" }
+          $output = Join-Path $PWD "release/IPTV-Plus-v$($env:RELEASE_VERSION)-$($env:EDITION)-Setup.exe"
+          & $compiler "/DVERSION=$($env:RELEASE_VERSION)" "/DEDITION=$($env:EDITION)" "/DPAYLOAD=$payload" "/DOUTPUT=$output" "tools/windows/iptvplus.nsi"
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path $output)) { throw "NSIS setup build failed" }
       - uses: actions/upload-artifact@v4
         with:
-          name: iptv-windows-${{ matrix.edition }
+          name: iptv-windows-${{ matrix.edition }}
           path: release/*.exe
           if-no-files-found: error
 
@@ -90,13 +111,16 @@ jobs:
       matrix:
         edition: [Free, Pro]
     env:
-      VITE_IPTV_EDITION: ${{ matrix.edition == 'Free' && 'free' || 'pro' }
-      IPTV_ANDROID_KEYSTORE_BASE64: ${{ matrix.edition == 'Free' && secrets.IPTV_FREE_KEYSTORE_BASE64 || secrets.IPTV_PRO_KEYSTORE_BASE64 }
-      IPTV_ANDROID_STORE_PASSWORD: ${{ matrix.edition == 'Free' && secrets.IPTV_FREE_STORE_PASSWORD || secrets.IPTV_PRO_STORE_PASSWORD }
-      IPTV_ANDROID_KEY_PASSWORD: ${{ matrix.edition == 'Free' && secrets.IPTV_FREE_KEY_PASSWORD || secrets.IPTV_PRO_KEY_PASSWORD }
-      IPTV_ANDROID_KEY_ALIAS: ${{ matrix.edition == 'Free' && secrets.IPTV_FREE_KEY_ALIAS || secrets.IPTV_PRO_KEY_ALIAS }
+      EDITION: ${{ matrix.edition }}
+      RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
+      IPTV_ANDROID_KEYSTORE_BASE64: ${{ matrix.edition == 'Free' && secrets.IPTV_FREE_KEYSTORE_BASE64 || secrets.IPTV_PRO_KEYSTORE_BASE64 }}
+      IPTV_ANDROID_STORE_PASSWORD: ${{ matrix.edition == 'Free' && secrets.IPTV_FREE_STORE_PASSWORD || secrets.IPTV_PRO_STORE_PASSWORD }}
+      IPTV_ANDROID_KEY_PASSWORD: ${{ matrix.edition == 'Free' && secrets.IPTV_FREE_KEY_PASSWORD || secrets.IPTV_PRO_KEY_PASSWORD }}
+      IPTV_ANDROID_KEY_ALIAS: ${{ matrix.edition == 'Free' && secrets.IPTV_FREE_KEY_ALIAS || secrets.IPTV_PRO_KEY_ALIAS }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -104,36 +128,47 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
       - uses: android-actions/setup-android@v3
-      - name: Install Android SDK and NDK
-        run: |
-          sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
-          echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+        with:
+          packages: platform-tools
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.50.1'
+          cache: true
       - run: npm install --no-audit --no-fund
-      - name: Init native Android project and embed original brand icons
+      - name: Prepare Flutter Android and permanent release signing
+        shell: bash
         run: |
+          edition="$(echo "$EDITION" | tr '[:upper:]' '[:lower:]')"
           npm run tauri -- icon assets/brand/iptv-plus-icon.svg
-          npm run tauri -- android init --ci --config "src-tauri/tauri.$VITE_IPTV_EDITION.conf.json"
-          npm run tauri -- icon assets/brand/iptv-plus-icon.svg
-      - name: Apply persistent Android release signing keys
-        run: python3 scripts/release/android_signing.py
-      - name: Compile signed APK and AAB
-        run: npm run tauri -- android build --apk --aab --ci --config "src-tauri/tauri.$VITE_IPTV_EDITION.conf.json" --target aarch64 armv7 x86_64
-      - name: Verify both signed packages
-        env:
-          RELEASE_VERSION: ${{ needs.preflight.outputs.version }
-          EDITION: ${{ matrix.edition }
+          python3 tools/clubtivi/prepare.py --edition "$edition" --icon-png src-tauri/icons/128x128@2x.png --icon-ico src-tauri/icons/icon.ico --version "$RELEASE_VERSION" --build-number 1
+          python3 tools/clubtivi/sign_flutter_android.py
+      - name: Build signed Free or Pro APK and AAB
+        shell: bash
+        working-directory: vendor/clubTivi
         run: |
-          python3 scripts/release/collect_android.py "$EDITION" "$RELEASE_VERSION" release
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "release/IPTV-Plus-v$RELEASE_VERSION-$EDITION.apk"
-          jarsigner -verify -strict "release/IPTV-Plus-v$RELEASE_VERSION-$EDITION.aab"
+          edition="$(echo "$EDITION" | tr '[:upper:]' '[:lower:]')"
+          flutter pub get
+          flutter test
+          flutter build apk --release --dart-define=IPTV_EDITION="$edition"
+          flutter build appbundle --release --dart-define=IPTV_EDITION="$edition"
+      - name: Verify both signatures and collect genuine Android binaries
+        shell: bash
+        run: |
+          mkdir -p release
+          apk="vendor/clubTivi/build/app/outputs/flutter-apk/app-release.apk"
+          aab="vendor/clubTivi/build/app/outputs/bundle/release/app-release.aab"
+          test -s "$apk" && test -s "$aab"
+          signer="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
+          test -x "$signer"
+          "$signer" verify --verbose "$apk"
+          jarsigner -verify -strict "$aab"
+          cp "$apk" "release/IPTV-Plus-v$RELEASE_VERSION-$EDITION.apk"
+          cp "$aab" "release/IPTV-Plus-v$RELEASE_VERSION-$EDITION.aab"
       - uses: actions/upload-artifact@v4
         with:
-          name: iptv-android-${{ matrix.edition }
+          name: iptv-android-${{ matrix.edition }}
           path: |
             release/*.apk
             release/*.aab
@@ -153,18 +188,19 @@ jobs:
           merge-multiple: true
       - name: Add all branding, QA manifest and SHA-256
         env:
-          RELEASE_VERSION: ${{ needs.preflight.outputs.version }
+          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
         run: |
           python3 scripts/release/validate_designs.py
           zip -q -r "release/IPTV-Plus-v$RELEASE_VERSION-Branding.zip" assets/brand assets/previews assets/screens
           python3 scripts/release/notes.py "$RELEASE_VERSION"
           python3 scripts/release/validate_artifacts.py --directory release --version "$RELEASE_VERSION"
-      - name: Publish ONLY after all eight build variants pass
+      - name: Publish ONLY after all eight Flutter binaries pass
         env:
-          GH_TOKEN: ${{ github.token }
-          TAG: ${{ needs.preflight.outputs.tag }
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.preflight.outputs.tag }}
         run: |
           gh release create "$TAG" release/* \
+            --prerelease \
             --target "$GITHUB_SHA" \
             --title "IPTV+ $TAG — Free + Pro Android and Windows" \
             --notes-file "release/RELEASE-NOTES.md"

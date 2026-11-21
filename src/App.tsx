@@ -7,6 +7,7 @@ import {
   Tv2, Upload, X
 } from 'lucide-react';
 import { type Channel, type Country, demoChannels, parseM3U, regions, loadApprovedCatalog } from './catalog';
+import { PUBLIC_SOURCES, fetchPublicPlaylist, getSelectedSources, saveSelectedSources } from './publicSources';
 
 type Screen = 'home' | 'live' | 'guide' | 'movies' | 'series' | 'kids' | 'favorites' | 'search' | 'sources' | 'settings';
 type MenuItem = { id: Screen; label: string; icon: typeof Home };
@@ -121,6 +122,10 @@ export default function App() {
   const [notice, setNotice] = useState('');
   const [importError, setImportError] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sourceIds, setSourceIds] = useState<string[]>(getSelectedSources);
+  const [sourceRefreshKey, setSourceRefreshKey] = useState(0);
+  const [sourceSync, setSourceSync] = useState('');
+  const [sourceErrors, setSourceErrors] = useState<string[]>([]);
   useEffect(() => {
     let cancelled = false;
     void loadApprovedCatalog().then(approved => {
@@ -128,6 +133,66 @@ export default function App() {
     }).catch(() => { /* katalog može biti privremeno nedostupan */ });
     return () => { cancelled = true; };
   }, []);
+  useEffect(() => {
+    if (sourceIds.length === 0) return;
+    let active = true;
+    const controllers = new Set<AbortController>();
+    const refreshSources = () => {
+      for (const id of sourceIds) {
+        const source = PUBLIC_SOURCES.find(s => s.id === id);
+        if (!source) continue;
+        const controller = new AbortController();
+        controllers.add(controller);
+        const timeout = window.setTimeout(() => controller.abort(), 20000);
+        void fetchPublicPlaylist(source, controller.signal).then(imported => {
+          if (!active) return;
+          setChannels(previous => {
+            const remaining = previous.filter(c => !c.demo && c.sourceId !== source.id);
+            return [...remaining, ...imported];
+          });
+          setSourceErrors(current => current.filter(message => !message.startsWith(source.name + ':')));
+          setSourceSync(source.name + ': ' + imported.length + ' dostupnih zapisa · ' + new Date().toLocaleString('hr-HR'));
+        }).catch((error: unknown) => {
+          if (!active) return;
+          const message = error instanceof Error ? error.message : 'Nepoznata pogreška.';
+          setSourceErrors(current => [...current.filter(s => !s.startsWith(source.name + ':')), source.name + ': ' + message]);
+        }).finally(() => {
+          window.clearTimeout(timeout);
+          controllers.delete(controller);
+        });
+      }
+    };
+    refreshSources();
+    const interval = window.setInterval(refreshSources, 12 * 60 * 60 * 1000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      controllers.forEach(controller => controller.abort());
+    };
+  }, [sourceIds, sourceRefreshKey]);
+
+  const changePublicSource = (sourceId: string) => {
+    if (sourceIds.includes(sourceId)) {
+      const next = sourceIds.filter(id => id !== sourceId);
+      setSourceIds(next);
+      saveSelectedSources(next);
+      setChannels(current => {
+        const filtered = current.filter(channel => channel.sourceId !== sourceId);
+        return filtered.length ? filtered : demoChannels;
+      });
+      setSourceSync('Javna lista je isključena.');
+    } else {
+      if (!pro && (sourceIds.length > 0 || playlistCount > 0)) {
+        setImportError('Free verzija dopušta jedan izvor. Za više izvora koristi IPTV+ Pro.');
+        return;
+      }
+      const next = [...sourceIds, sourceId];
+      setSourceIds(next);
+      saveSelectedSources(next);
+      setImportError('');
+      setSourceSync('Učitavam odabranu javnu listu ...');
+    }
+  };
   const realCount = channels.filter(c => !c.demo).length;
   const visibleChannels = useMemo(() => {
     let values = channels;
@@ -246,11 +311,33 @@ export default function App() {
               {demoChannels.slice(0, 5).map((c,index)=><div key={c.id} className="guide-row"><strong>{c.name}</strong><div className={`guide-program tone-${gradients[index % gradients.length]}`}>Demonstracijski prikaz EPG-a</div><div className="guide-program muted">Poveži XMLTV</div></div>)}</div>
             <p className="hint"><Info size={16}/> Ovo je dizajnerski prikaz. Stvarni XMLTV EPG, vremenske zone i arhiva programa tek trebaju biti povezani.</p>
           </section>}
-          {screen === 'sources' && <section className="content-section"><div className="section-head"><div><span className="eyebrow">UPRAVLJANJE SADRŽAJEM</span><h2>Dodaj svoju M3U listu</h2></div></div>
+          {screen === 'sources' && <section className="content-section"><div className="section-head"><div><span className="eyebrow">UPRAVLJANJE SADRŽAJEM</span><h2>Javne liste i vlastiti izvori</h2></div></div>
+            <div className="panel public-sources-panel">
+              <div className="section-head"><div><span className="eyebrow">ODABERI LISTU JEDNIM DODIROM</span><h3>GitHub zbirke po državama</h3></div>
+                <button className="btn secondary" disabled={!sourceIds.length} onClick={() => setSourceRefreshKey(key => key + 1)}>Osvježi odabrane</button>
+              </div>
+              <p className="public-source-disclaimer">Vanjski izvori iz zajednice; sadržaj i prava pojedinih TV programa nisu zajamčeni. Uključi samo liste za koje imaš pravo gledanja. Izdvajamo javne i uređivane zbirke, ali ih ne predstavljamo kao službene IPTV+ kanale.</p>
+              <div className="public-source-grid">
+                {PUBLIC_SOURCES.map(source => {
+                  const enabled = sourceIds.includes(source.id);
+                  return <article className={`public-source-card ${enabled ? 'enabled' : ''}`} key={source.id}>
+                    <div className="public-source-meta"><span>{source.country === 'GLOBAL' ? '🌍' : regions.find(r => r.code === source.country)?.flag} {source.country === 'GLOBAL' ? 'Međunarodno' : source.country}</span>
+                      <span className={source.tier === 'curated' ? 'source-tier curated' : 'source-tier'}>{source.tier === 'curated' ? 'Uređivana zbirka' : 'Zbirka zajednice'}</span></div>
+                    <strong>{source.name}</strong>
+                    <p>{source.notes}</p>
+                    <small>Izvor: <a href={source.repo} target="_blank" rel="noopener noreferrer">{source.credit}</a></small>
+                    <button className={`btn ${enabled ? 'secondary' : 'primary'}`} onClick={() => changePublicSource(source.id)}>{enabled ? 'Ukloni izvor' : 'Dodaj listu'}</button>
+                  </article>;
+                })}
+              </div>
+              {sourceSync && <p className="hint" role="status"><Info size={16}/>{sourceSync}. Automatsko osvježavanje svakih 12 sati dok je aplikacija otvorena.</p>}
+              {sourceErrors.length > 0 && <div className="alert" role="alert">{sourceErrors.map((message, index) => <div key={index}>{message}</div>)}</div>}
+            </div>
+            <div className="section-head" style={{marginTop: 28}}><div><span className="eyebrow">VLASTITI IZVORI</span><h3>Uvezi svoju M3U listu</h3></div></div>
             <div className="sources-layout"><div className="panel"><div className="panel-icon"><Upload size={24}/></div><h3>Uvezi datoteku</h3><p>Odaberi .m3u, .m3u8 ili tekstualnu datoteku do 5 MB. Unos i analiza odvijaju se na uređaju.</p><label className="btn primary upload-label"><FileUp size={18}/> Odaberi datoteku<input type="file" accept=".m3u,.m3u8,.txt" onChange={e => { void onFile(e.target.files?.[0]); e.target.value=''; }} /></label></div>
               <div className="panel"><div className="panel-icon violet"><ListVideo size={24}/></div><h3>Zalijepi sadržaj liste</h3><p>M3U format mora početi oznakom #EXTM3U. Iz sigurnosnih razloga URL-ovi s ugrađenim korisničkim podacima nisu dopušteni.</p><textarea value={playlistText} onChange={e => setPlaylistText(e.target.value)} placeholder={'#EXTM3U\n#EXTINF:-1 group-title="Hrvatska",Moj kanal\nhttps://example.org/live.m3u8'} aria-label="Sadržaj M3U liste" rows={5}/><button className="btn secondary" onClick={() => ingest(playlistText)} disabled={!playlistText.trim()}>Uvezi sadržaj</button></div></div>
               {importError && <p className="alert" role="alert">{importError}</p>}
-              <div className="source-summary"><ShieldCheck size={22}/><div><strong>Privatnost prije svega</strong><p>Nema IPTV+ računa ni prijenosa lista na naš poslužitelj. Izvori se trenutačno čuvaju samo tijekom rada aplikacije; sigurna lokalna trajna pohrana i automatska ažuriranja su planirani.</p></div></div>
+              <div className="source-summary"><ShieldCheck size={22}/><div><strong>Privatnost prije svega</strong><p>Nema IPTV+ računa ni prijenosa lista na naš poslužitelj. Odabir javnih lista sprema se lokalno; streamovi se automatski osvježavaju tijekom rada aplikacije. Uvezene privatne liste ostaju u memoriji samo tijekom sesije.</p></div></div>
           </section>}
           {screen === 'settings' && <section className="content-section"><div className="section-head"><div><span className="eyebrow">PRILAGODI ISKUSTVO</span><h2>Postavke</h2></div></div>
             <div className="settings-grid">

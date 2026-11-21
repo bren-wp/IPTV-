@@ -1,0 +1,3 @@
+[submodule "vendor/clubTivi"]
+	path = vendor/clubTivi
+	url = https://github.com/clubanderson/clubTivi.git

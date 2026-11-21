@@ -1,3 +1,18 @@
+## Glavni reprodukcijski engine: clubTivi / Flutter
+
+**IPTV+ sada se razvija primarno kao Flutter aplikacija zasnovana na originalnoj
+clubTivi jezgri (Apache 2.0)**. Tauri/React je početni razvojni prototip i
+referenca dizajna, a ne predviđeni produkcijski engine za sljedeća izdanja.
+Naš autorski IPTV+ Flutter početni zaslon, logo i regionalni prikaz nadograđuju
+postojeću reprodukciju, EPG, Xtream i podršku za daljinski.
+
+- [Plan i arhitektura migracije](docs/ENGINE_MIGRATION.md)
+- [Adapter i Flutter IPTV+ home](tools/clubtivi/README.md)
+- [Izvorni autor i licence](THIRD_PARTY_NOTICES.md)
+
+Nativna instalacijska izdanja Android/Windows još zahtijevaju signing i QA;
+nisu predstavljena kao gotova dok sve provjere ne prođu.
+
 <div align="center">
 
 <img src="assets/brand/iptv-plus-logo.svg" alt="IPTV+ logo" width="285"/>
@@ -139,3 +154,34 @@ Pravila: [RELEASE_POLICY.md](docs/RELEASE_POLICY.md).
 potpisivanje; još nisu izvršeni. Pro nije samo prekidač u Free aplikaciji,
 nego zasebni paket. Za unos unaprijed pripremljenih regionalnih izvora
 potrebna su dokumentirana prava ([CATALOG.md](docs/CATALOG.md)).
+
+## 🌐 Regionalne GitHub IPTV zbirke na jedan klik
+
+U prozoru **Izvori i liste** ponuđene su javne zbirke `iptv-org` (HR, SI, BiH, RS),
+uređivani `Doubo Public Channel Directory` (HR, BiH, RS) te
+`biskyt/legalFreeIPTVplaylist` (TV, filmovi i serije s opisanom pravnom podlogom).
+
+Korisnik aktivira izvor i kanali se dohvaćaju izravno na njegov uređaj, bez poslužitelja IPTV+.
+Aktivirane liste ponovo se osvježavaju pri pokretanju i **svakih 12 sati dok je aplikacija otvorena**.
+Za odabrane javne izvore spremaju se samo ID-ovi, bez pristupnih podataka.
+Pojedini izvori mogu biti nedostupni zbog CORS-a, geoblokade ili prava emitera.
+
+Zbirke i postupanje s pravima detaljno: [GitHub sources](docs/GITHUB_SOURCES.md).
+
+## ⚡ Opcionalni clubTivi Flutter engine
+
+U repozitorij je dodan **pinned Apache-2.0 Git submodule** `vendor/clubTivi`
+i stvarni `tools/clubtivi/prepare.py` rebrand adapter. On u lokalnoj kopiji
+originalnog projekta mijenja naziv/ikone/boje, Android Free/Pro package ID,
+aktivira Free/Pro feature gate te dodaje **10 regionalnih i javnih lista
+na jedan klik** u postojeći clubTivi Providers zaslon.
+
+Službeni Tauri kod u `src/` ostaje glavni razvojni paket dok ne prođu
+Flutter testovi, novi dizajn, izvori i sva 8 obvezna build artefakta.
+
+- [Detaljne upute za clubTivi rebrand](tools/clubtivi/README.md)
+- [Treće strane i licence](THIRD_PARTY_NOTICES.md)
+- [Test rebrand adaptera](.github/workflows/clubtivi-smoke.yml)
+
+*Rebrand adapter je razvojni alat: produkcijski Flutter APK/AAB i Windows
+Portable/Setup još nisu provjereni i nisu objavljeni.*
