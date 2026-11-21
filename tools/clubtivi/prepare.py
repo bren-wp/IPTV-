@@ -89,6 +89,18 @@ def prepare(root: Path, icon_png: Path, icon_ico: Path, version: str, build_numb
         ("  go_router: ^14.8.1", "  go_router: ^18.1.4"),
     ):
         replace_required(pubspec, previous, current)
+    # Upstream committed database.g.dart but retained generators that no
+    # longer resolve on Dart 3.14 (missing SDK _macros). Code generation is
+    # deliberately excluded from app/runtime CI until a coordinated API
+    # migration; committed generated schema remains intact.
+    for unused in (
+        "  riverpod_generator: ^2.6.3\n",
+        "  build_runner: ^2.4.14\n",
+        "  freezed: ^2.5.7\n",
+        "  json_serializable: ^6.9.4\n",
+        "  drift_dev: ^2.22.1\n",
+    ):
+        replace_required(pubspec, unused, "")
     mark_modified(pubspec, "#")
 
     app = root / "lib/app/app.dart"
@@ -111,32 +123,44 @@ def prepare(root: Path, icon_png: Path, icon_ico: Path, version: str, build_numb
                      "  FeatureGate.setTier(AppTier.pro);\n  MediaKit.ensureInitialized();")
     mark_modified(main, "//")
 
-    # clubTivi already has a TV remote-friendly, one-click provider chooser.
-    # Add regional GitHub public directories to its existing FreeTvProvider list.
-    regional = [
-        ("iptvplus-doubo-hr", "Hrvatska - Doubo", "https://cdn.jsdelivr.net/gh/streamline-iptv/iptv-playlists@dist/countries/hr.m3u"),
-        ("iptvplus-doubo-ba", "BiH - Doubo", "https://cdn.jsdelivr.net/gh/streamline-iptv/iptv-playlists@dist/countries/ba.m3u"),
-        ("iptvplus-doubo-rs", "Srbija - Doubo", "https://cdn.jsdelivr.net/gh/streamline-iptv/iptv-playlists@dist/countries/rs.m3u"),
-        ("iptvplus-iptvorg-hr", "Hrvatska - iptv-org", "https://iptv-org.github.io/iptv/countries/hr.m3u"),
-        ("iptvplus-iptvorg-si", "Slovenija - iptv-org", "https://iptv-org.github.io/iptv/countries/si.m3u"),
-        ("iptvplus-iptvorg-ba", "BiH - iptv-org", "https://iptv-org.github.io/iptv/countries/ba.m3u"),
-        ("iptvplus-iptvorg-rs", "Srbija - iptv-org", "https://iptv-org.github.io/iptv/countries/rs.m3u"),
-        ("iptvplus-biskyt-live", "Javni TV - Legal Free IPTV", "https://biskyt.github.io/legalFreeIPTVplaylist/live.m3u"),
-        ("iptvplus-biskyt-movies", "Filmovi - Legal Free IPTV", "https://biskyt.github.io/legalFreeIPTVplaylist/movies.m3u"),
-        ("iptvplus-biskyt-series", "Serije - Legal Free IPTV", "https://biskyt.github.io/legalFreeIPTVplaylist/series.m3u"),
-    ]
-    presets = "\n".join(
-        f"    FreeTvProvider(\n      id: '{identifier}',\n"
-        f"      name: '{label}',\n      url: '{url}',\n"
-        "      description: 'Vanjska javna zbirka; prava pojedinog programa nisu zajamcena.',\n"
-        "      icon: Icons.public_rounded,\n    ),"
-        for identifier, label, url in regional
-    )
+    # IPTV+ opt-in directories grouped by primary country and channel genre.
+    # No streams are bundled, and availability/rights are never guaranteed.
+    from catalog import as_flutter_entries, as_flutter_groups
     providers = root / "lib/features/providers/providers_screen.dart"
-    replace_required(providers, "  static const all = [", "  static const all = [\n" + presets)
-    replace_required(providers, "title: const Text('IPTV Providers')", "title: const Text('IPTV+ · Izvori i liste')")
-    replace_required(providers, "const _SectionHeader(title: 'Free TV Providers')",
-                     "const _SectionHeader(title: 'Javne IPTV zbirke — prava sadržaja provjeriti')")
+    replace_required(providers, "  final String description;",
+                     "  final String description;\n  final String group;")
+    replace_required(providers, "    this.description = '',",
+                     "    this.description = '',\n    this.group = '🌐 Ostali javni izvori',")
+    replace_required(providers, "  static const all = [",
+                     "  static const groups = [\n" + as_flutter_groups() +
+                     "\n  ];\n  static const all = [\n" + as_flutter_entries())
+    before_sections = """              const _SectionHeader(title: 'Free TV Providers'),
+              const SizedBox(height: 4),
+              ...FreeTvProvider.all.map((fp) => _FreeTvProviderTile(
+                    freeProvider: fp,
+                    isAdded: providers.any((p) => p.id == fp.id),
+                  )),"""
+    after_sections = """              const _SectionHeader(title: 'Regije i kategorije programa'),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 12),
+                child: Text('Najprije Hrvatska, Slovenija, BiH i Srbija. '
+                    'Ostale države, sport, filmovi, crtani, vijesti i drugi '
+                    'žanrovi dostupni su na odabir. '
+                    'Prava pojedinog programa nisu zajamčena.',
+                    style: TextStyle(color: Colors.white70, fontSize: 12)),
+              ),
+              ...FreeTvProvider.groups.map((group) => _IptvPlusCatalogGroup(
+                    group: group,
+                    sources: FreeTvProvider.all.where(
+                      (source) => source.group == group).toList(),
+                    addedIds: providers.map((p) => p.id).toSet(),
+                  )),"""
+    replace_required(providers, before_sections, after_sections)
+    replace_required(providers, "title: const Text('IPTV Providers')",
+                     "title: const Text('IPTV+ · Izvori i kategorije')")
+    providers.write_text(providers.read_text(encoding="utf-8") + "\n" +
+        (ROOT / "tools/clubtivi/catalog_section.dart").read_text(encoding="utf-8"),
+        encoding="utf-8")
     mark_modified(providers, "//")
 
     # Resyncing an existing provider must not count as adding a new provider.

@@ -10,9 +10,11 @@ class UnsignedReleasePolicyTests(unittest.TestCase):
         self.assertNotIn("secrets.IPTV_ANDROID", content)
         self.assertNotIn("sign_flutter_android.py", content)
         self.assertNotIn("signing-readiness:", content)
-        self.assertIn("Unsigned.apk", content)
-        self.assertIn("Unsigned.aab", content)
-        self.assertIn("apksigner", content)
+        self.assertIn("collect_unsigned_android.py", content)
+        collector = (ROOT / "scripts/release/collect_unsigned_android.py").read_text(encoding="utf-8")
+        self.assertIn("-Unsigned.apk", collector)
+        self.assertIn("-Unsigned.aab", collector)
+        self.assertIn("apksigner", collector)
 
     def test_one_edition_only(self):
         content = (ROOT / "tools/clubtivi/prepare.py").read_text(encoding="utf-8")

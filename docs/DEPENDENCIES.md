@@ -20,3 +20,8 @@ Za dugoročnu reproducibilnost treba pohraniti ažurirani downstream `pubspec.lo
 Verzije: https://pub.dev/packages/dio · https://pub.dev/packages/drift · https://pub.dev/packages/shared_preferences · https://pub.dev/packages/media_kit · https://pub.dev/packages/go_router .
 
 **Kompatibilnost:** Noviji `drift_dev 2.35.3` zahtijeva `build >=3`, a `freezed 2.x` koristi `build ^2.3.1`; zbog toga su `drift` i `drift_dev` privremeno zaključani na 2.22.1 dok se ne izvrši koordinirana nadogradnja generatora. Ne prikazivati sve ovisnosti kao najnovije.
+
+
+## Generatori i Dart 3.14
+
+U aplikacijskim Flutter buildovima isključeni su `riverpod_generator`, `build_runner`, `freezed`, `json_serializable` i `drift_dev`: stariji generatori zavise od SDK `_macros` koji Dart 3.14 nema, dok je generirana `database.g.dart` već uključena u zaključani upstream. Ovaj zahvat ne uklanja runtime `drift` ili `flutter_riverpod`. Prije iduće migracije sheme baze potrebno je koordinirano ažurirati generator i ponovno izraditi te testirati generirani kod.\n
